@@ -129,8 +129,10 @@ getCompleteData <- function (dfdata, dfsurvey) {
   taskV <- unique(df$expName)
   Day <- unique(df$Day)
   
-  #number of sessions for each task version and day (bounceV1, day 1 and 2, etc...)
-  Ns <- c(8,4,10,4)
+  #number of sessions for each task version and day
+  Ns <- c(8,4, #V1 day 1, V1 day 2
+          10,4, #V2 day 1, V3 day 2
+          8,4) #V2 day 1, V3 day 2
 
   #keep participants who did the required number of blocks for sessions 1 and 2
   Nsess <- data.frame(taskVersion = rep(taskV, each = 2),
@@ -199,11 +201,12 @@ getParams <- function (dfdata) {
   param.list <- list('expNames'=expNames, 'Gps'=Gps)
   list2env(param.list, envir = .GlobalEnv)
   
-  paddleV1 <- c(0.075, 0.0125) #length and height of the paddle in V1 and V2
-  paddleV1Max <- c(0.025) #length of the paddle where participants get maximum points
-  ball <- c(0.0125)
+  paddle <- data.frame(x = c(0.075, 0.075, 0.05), #length of the paddle in different task versions
+                       y = c(0.0125, 0.0125, 0.0125), #height of the paddle in different task versions
+                       MaxPts = c(0.025, 0.025, 0.025)) #length of the paddle where participants get maximum points
+  ball <- c(0.0125) #diameter of the ball
   
-  list.p <- list('ball'=ball, 'paddleV1'=paddleV1, 'paddleV1Max'=paddleV1Max)
+  list.p <- list('ball'=ball, 'paddle'=paddle)
   return(list.p)
   
 }
@@ -211,18 +214,25 @@ getParams <- function (dfdata) {
 
 getScore <- function (df) {
   
-  df %<>% 
-    select(participant, Group, Day, expName, trialsNum, tasksNum, ballSpeed,
-           interceptDelta) %>% 
-    filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
-    mutate(points = cut(interceptDelta, breaks = c(-Inf, -0.075, -0.025, 0.025, 0.075, Inf),
-                        labels = c('0','5','10','5','0'))) %>% 
-    count(expName, Day, Group, tasksNum, points) %>% 
-    group_by(expName, Day, Group, tasksNum) %>% #ungroup 'points' to compute percentages across the other variables
-    arrange(tasksNum, desc(points)) %>% 
-    mutate(percent = n/sum(n)*100) %>% 
-    ungroup()
+  #define breaks to calculate how many points participants got on each trial
+  cutoff <- mapply(function(x,y) c(-Inf, -x, -y, y, x, Inf),
+                   params$paddle$x, params$paddle$MaxPts, SIMPLIFY = F) #set SIMPLIFY to FALSE to get a list instead of matrix
   
+  df %<>%
+    select(participant, Group, Day, expName, trialsNum, tasksNum, ballSpeed,
+           interceptDelta) %>%
+    filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
+    split(., .$expName) %>% #split into list of dataframes to use mapply
+    mapply(function(x,y) mutate(x, points = cut(interceptDelta, breaks = y,
+                                                labels = c('0','5','10','5','0'))),
+           ., cutoff, SIMPLIFY = F) %>% 
+    bind_rows() %>% #combine the list of dataframes (unsplit)
+    count(expName, Day, Group, tasksNum, points) %>%
+    group_by(expName, Day, Group, tasksNum) %>% #ungroup 'points' to compute percentages across the other variables
+    arrange(tasksNum, desc(points)) %>%
+    mutate(percent = n/sum(n)*100) %>%
+    ungroup()
+
   return(df)
   
 }

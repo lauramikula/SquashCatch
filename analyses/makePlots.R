@@ -45,8 +45,9 @@ plotSuccessRate <- function(df, save.as = 'svg') {
         t_test(hitPercent ~ tasksNum, comparisons = comps[[j]]) %>% 
         adjust_pvalue(method = 'bonferroni') %>%
         add_significance('p.adj') %>%
-        ungroup() %>% 
-        add_xy_position(x = 'tasksNum', fun = 'mean_sd', dodge = 0.8)
+        add_xy_position(x = 'tasksNum', group = 'Group', fun = 'mean_sd',
+                        dodge = 0.5, step.increase = 0.8, scales = 'free') %>% 
+        ungroup()
 
       #get number of participants for each task version (n) and each group (n.gp)
       n.gp <- demoG$N %>%
@@ -66,7 +67,8 @@ plotSuccessRate <- function(df, save.as = 'svg') {
       #make plots
       p <- ggline(dataD, x = 'tasksNum', y = 'hitPercent', color = 'Group',
                   add = c('mean_sd'),
-                  position = position_dodge(0.5)) +
+                  position = position_dodge(0.5)) %>% 
+        ggadd(c('jitter'), alpha = 0.2, jitter = 0.1, position = position_dodge()) + #add individual data points
         geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4, alpha = 0.7) +
         scale_color_discrete(name = 'Group', labels = lbl)
 
@@ -74,18 +76,21 @@ plotSuccessRate <- function(df, save.as = 'svg') {
                  xlab = 'Blocks',
                  ylab = 'Successful trials (%)',
                  ylim = c(0, 100),
-                 title = title)
-        # stat_pvalue_manual(stats, color = 'Group', step.group.by = 'Group', #add stats results
-        #                    bracket.nudge.y = 5,
-        #                    tip.length = 0.02, step.increase = 0.1) +
-        # scale_y_continuous(expand = expansion(mult = c(0, 0.5)))
+                 title = title) +
+        stat_pvalue_manual(stats, color = 'Group',
+                           bracket.nudge.y = -5, tip.length = 0.02,
+                           step.group.by = 'Group',
+                           # step.increase = 0.01,
+                           hide.ns = T) +
+        scale_y_continuous(breaks = seq(0, 100, by = 50),
+                           expand = expansion(mult = c(0, 0.5)))
 
       plist[[j]] = p
 
     }
     
     #save plots as svg or pdf
-    plot <- ggarrange(plotlist = plist, ncol = 2, nrow = 1)
+    plot <- ggarrange(plotlist = plist, ncol = 2, nrow = 1, widths = c(2,1))
     
     #filename to save figure
     if (save.as == 'svg') {
@@ -94,6 +99,8 @@ plotSuccessRate <- function(df, save.as = 'svg') {
     } else {
       print(plot)
     }
+    
+    # return(stats)
     
   }
   
@@ -242,12 +249,12 @@ plotDelta <- function(df, save.as = 'svg') {
   vline <- list(c(200),
                 c(100, 150))
   
-  #to plot paddle length
-  pdlL <- c(-params$paddleV1[1], params$paddleV1[1])
-  
   for (i in 1:length(expNames)) {
     
     plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
     
     #get data for each version of the experiment
     data <- df %>%
@@ -375,17 +382,17 @@ plotDeltaShift_blocks <- function(df, save.as = 'svg') {
   
   #filename to save figure
   if (save.as == 'pdf') {
-    pdf('./docs/interceptDelta-shift_blocks.pdf', width=12, height=10)
+    pdf('./docs/interceptDelta-shift_blocks.pdf', width=14, height=10)
   }
-  
-  #to plot paddle length
-  pdlL <- c(-params$paddleV1[1], params$paddleV1[1])
-  #to plot central part of paddle
-  pdlC <- c(-params$paddleV1Max, params$paddleV1Max)
   
   for (i in 1:length(expNames)) {
     
     plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
+    #to plot central part of paddle
+    pdlC <- c(-params$paddle$MaxPts[i], params$paddle$MaxPts[i])
     
     #get data for each version of the experiment
     data <- df %>%
@@ -438,7 +445,7 @@ plotDeltaShift_blocks <- function(df, save.as = 'svg') {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/interceptDelta-shift_blocks_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=12, height=10)
+      ggsave(file=fname, plot=plot, width=14, height=10)
     } else {
       print(plot)
     }
@@ -458,21 +465,21 @@ plotDeltaShift_trials <- function(df, save.as = 'svg') {
   
   #filename to save figure
   if (save.as == 'pdf') {
-    pdf('./docs/interceptDelta-shift_trials.pdf', width=12, height=15)
+    pdf('./docs/interceptDelta-shift_trials.pdf', width=15, height=10)
   }
   
   #to plot trials w/ changes in conditions (different depending on the day)
   tr <- list(c(201:210),
              c(1:10, 101:110, 151:160))
   
-  #to plot paddle length
-  pdlL <- c(-params$paddleV1[1], params$paddleV1[1])
-  #to plot central part of paddle
-  pdlC <- c(-params$paddleV1Max, params$paddleV1Max)
-  
   for (i in 1:length(expNames)) {
     
     plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
+    #to plot central part of paddle
+    pdlC <- c(-params$paddle$MaxPts[i], params$paddle$MaxPts[i])
     
     #get data for each version of the experiment
     data <- df %>%
@@ -506,27 +513,34 @@ plotDeltaShift_trials <- function(df, save.as = 'svg') {
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
       
       #make plots
-      p <- ggplot(dataD, aes(x = interceptDelta, y = trialsN, fill = Group)) +
-        geom_vline(xintercept = pdlL, linetype = 'solid') +
-        geom_vline(xintercept = pdlC, linetype = 'dashed') +
-        geom_density_ridges(alpha = 0.5, size = 0.4, scale = 1.5) +
-        theme_ridges() + 
-        theme(legend.position = 'bottom') +
-        scale_fill_discrete(name = 'Group', labels = lbl) +
-        labs(title = title,
-             x = 'Distance between paddle and ball (a.u.)', y = 'Blocks')
+      dataD %<>% split(., .$tasksNum)
+      
+      p <- lapply(dataD, function(x) ggplot(x, aes(x = interceptDelta, y = trialsN, fill = Group)) +
+                    geom_vline(xintercept = pdlL, linetype = 'solid') +
+                    geom_vline(xintercept = pdlC, linetype = 'dashed') +
+                    geom_density_ridges(alpha = 0.5, size = 0.4, scale = 1.5) +
+                    theme_ridges() +
+                    theme(legend.position = 'bottom') +
+                    scale_fill_discrete(name = 'Group', labels = lbl) +
+                    labs(title = title,
+                         x = 'Distance between paddle and ball (a.u.)', y = 'Trials'))
       
       plist[[j]] = p
       
     }
     
     #save plots as svg or pdf
-    plot <- ggarrange(plotlist = plist, ncol = 2, nrow = 1)
-    
+    plot <- ggarrange(
+      ggarrange(plotlist = plist[[1]], ncol = 3), #1st row for day 1
+      ggarrange(plotlist = plist[[2]], ncol = 3, 
+                common.legend = T, legend = 'bottom'), #2nd row for day 2
+      nrow = 2
+    )
+
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/interceptDelta-shift_trials_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=12, height=15)
+      ggsave(file=fname, plot=plot, width=15, height=10)
     } else {
       print(plot)
     }
@@ -552,9 +566,6 @@ plotDeltaRatio <- function(df, save.as = 'svg') {
   #to represent trials w/ changes in conditions (different depending on the day)
   vline <- list(c(200),
                 c(100, 150))
-  
-  # #to plot paddle length
-  # pdlL <- c(-params$paddleV1[1], params$paddleV1[1])
   
   for (i in 1:length(expNames)) {
     
