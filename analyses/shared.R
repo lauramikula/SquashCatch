@@ -118,6 +118,15 @@ getPavlovia <- function () {
 
 getCompleteData <- function (dfdata, dfsurvey) {
   
+  #remove participants who did session 2 but not session 1
+  dfdatasplit <- split(dfdata, dfdata$Day)
+  to_rmv <- setdiff(dfdatasplit[[2]]$participant, dfdatasplit[[1]]$participant)
+  dfdata %<>% 
+    filter(!participant %in% to_rmv)
+  dfsurvey %<>% 
+    filter(!id %in% to_rmv)
+  
+  
   df <- dfdata %>% 
     select(participant, Day, tasksNum, expName) %>% 
     unique() %>% 
@@ -134,31 +143,32 @@ getCompleteData <- function (dfdata, dfsurvey) {
           10,4, #V2 day 1, V3 day 2
           8,4) #V2 day 1, V3 day 2
 
-  #keep participants who did the required number of blocks for sessions 1 and 2
+  #find participants who did the required number of blocks for sessions 1 and 2
   Nsess <- data.frame(taskVersion = rep(taskV, each = 2),
-                       day = rep(1:2, times = 2, each = 1),
+                       day = rep(1:2, times = length(taskV), each = 1),
                        N = Ns)
-  match_N <- Nsess[match(interaction(df$expName, df$Day), interaction(Nsess$taskVersion, Nsess$day)), 'N']
+  match_N <- Nsess[match(interaction(df$expName, df$Day), 
+                         interaction(Nsess$taskVersion, Nsess$day)), 'N']
   df <- df[which(df$n != match_N), ] #list those who don't match to exclude them
   
+  #keep participants who are NOT in df (those who did all blocks for each session)
   dfdata %<>% 
-    filter(!participant %in% df$participant) #keep participants who are not in df (those who did all blocks for each session)
+    filter(!participant %in% df$participant)
   
-  dfsurvey %<>% 
-    filter(!id %in% df$participant)
-  
-  #remove participants with at least 13 consecutive misses
+  #find participants with at least 13 consecutive misses
   rm_pp <- dfdata %>% 
     group_by(participant, Day, tasksNum) %>% 
     do({tmp <- sum(with(rle(.$HitMiss == 0), lengths*values) > 12)
     data.frame(Count = tmp)}) %>% 
     filter(Count > 0)
   
-  dfsurvey %<>% 
-    filter(!id %in% rm_pp$participant)
-  
+  #remove participants who did at least 13 consecutive misses
   dfdata %<>% 
     filter(!participant %in% rm_pp$participant)
+  
+  #remove participants in dfsurvey who are not in dfdata
+  dfsurvey %<>% 
+    filter(id %in% dfdata$participant)
   
   df.list <- list('data'=dfdata, 'survey'=dfsurvey)
   list2env(df.list, envir = .GlobalEnv)
@@ -182,11 +192,20 @@ getDemogr <- function (dfdata, dfsurvey) {
   is_age <- dfsurvey %>% 
     filter(session == 1) %>% 
     group_by(taskVersion, group) %>% 
-    summarise(age = mean(Q2.2, na.rm=T),
-              age_SD = sd(Q2.2, na.rm=T),
+    summarise(mean = mean(Q2.2, na.rm=T),
+              SD = sd(Q2.2, na.rm=T),
+              median = median(Q2.2, na.rm=T),
+              min = min(Q2.2, na.rm=T),
+              max = max(Q2.2, na.rm=T),
               .groups = 'drop')
   
-  list.demogr <- list('N'=is_N, 'sex'=is_sex, 'age'=is_age, 'pp'=is_pp, 'ppN'=is_ppN)
+  is_hand <- dfsurvey %>% 
+    filter(session == 1) %>% 
+    distinct(taskVersion, id, .keep_all = T) %>% 
+    count(taskVersion, Q2.11)
+  
+  list.demogr <- list('N'=is_N, 'sex'=is_sex, 'age'=is_age, 'hand'=is_hand, 
+                      'pp'=is_pp, 'ppN'=is_ppN)
   return(list.demogr)
   
 }
@@ -208,6 +227,27 @@ getParams <- function (dfdata) {
   
   list.p <- list('ball'=ball, 'paddle'=paddle)
   return(list.p)
+  
+}
+
+
+getPerturb <- function(df) {
+  
+  df %<>% 
+    filter(Day == 1 & tasksNum %in% c(4,5)) %>% 
+    select(expName, pertChoice, alphaChoice, interceptBall) %>% 
+    distinct(expName, pertChoice, alphaChoice, .keep_all = T) %>% 
+    mutate(pertChoice = recode(pertChoice, '-9' = 'perturb', '9' = 'perturb', 
+                               '0' = 'notperturb')) %>% 
+    spread(pertChoice, interceptBall) %>% 
+    mutate(perturb_size = abs(perturb - notperturb))
+  
+  #split dataframe
+  df.split <- df %>% 
+    filter(alphaChoice < 0) %>% 
+    split(., .$expName)
+  
+  return(df.split)
   
 }
 

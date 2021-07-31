@@ -8,15 +8,15 @@ source('analyses/makePlots.R')
 survey <- getSurvey()
 data <- getPavlovia()
 
-#do some data cleaning
-#remove participants who did not complete all blocks within each session and missed on purpose
+#do some data cleaning: remove participants who did not complete all blocks 
+#within each session and missed on purpose
 getCompleteData(data, survey)
 
 
 #parameters and demographics ----
 
 params <- getParams(data)
-
+perturb <- getPerturb(data)
 demoG <- getDemogr(data, survey)
 
 
@@ -183,8 +183,7 @@ ballEndPos <- ballEndPos %>%
 ballEndPos_wide <- ballEndPos %>% 
   mutate(pertChoice = recode(pertChoice, '-9' = 'perturb', '9' = 'perturb', '0' = 'notperturb')) %>% 
   spread(pertChoice, ballEndX_mn) %>% 
-  mutate(perturb_size = abs(perturb - notperturb),
-         pertSize = abs(notperturb - perturb))
+  mutate(perturb_size = abs(perturb - notperturb))
 
 prop_trials <- data %>% 
   select(Group, Day, expName, pertChoice, alphaChoice, interceptDelta) %>% 
