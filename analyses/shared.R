@@ -55,11 +55,7 @@ getSurvey <- function () {
   #extract 1st row of the dataframe which contains labels
   labs <- as.character(survey[1,])
   
-  survey <- survey %>% 
-    set_label(label = labs)
-  survey <- survey[-1, ]
-  
-  #convert columns into numeric
+  #convert columns into numeric and recode groups
   toCvt <- c('Duration (in seconds)',
              'Q2.2',
              'Q2.4',
@@ -75,9 +71,14 @@ getSurvey <- function () {
              'Q8.4_1',
              'Q8.4_2')
   
+  # survey <- survey %>%
+  #   mutate(across(all_of(toCvt), as.numeric),
+  #          group = recode(group, `1` = 'train_horiz', `2` = 'train_tilt'))
+  
+  #set labels from original csv file
   survey <- survey %>% 
-    mutate(across(all_of(toCvt), as.numeric),
-           group = recode(group, `1` = 'train_horiz', `2` = 'train_tilt'))
+    set_label(label = labs)
+  survey <- survey[-1, ]
   
   return(survey)
   
@@ -204,7 +205,18 @@ getDemogr <- function (dfdata, dfsurvey) {
     distinct(taskVersion, id, .keep_all = T) %>% 
     count(taskVersion, Q2.11)
   
-  list.demogr <- list('N'=is_N, 'sex'=is_sex, 'age'=is_age, 'hand'=is_hand, 
+  is_device <- dfsurvey %>% 
+    filter(session == 1) %>% 
+    distinct(taskVersion, id, .keep_all = T) %>% 
+    count(taskVersion, Q6.1)
+  
+  is_cursor <- dfsurvey %>% 
+    filter(session == 1) %>% 
+    distinct(taskVersion, id, .keep_all = T) %>% 
+    count(taskVersion, Q6.2)
+  
+  list.demogr <- list('N'=is_N, 'sex'=is_sex, 'age'=is_age, 'hand'=is_hand,
+                      'device'=is_device, 'cursor'=is_cursor,
                       'pp'=is_pp, 'ppN'=is_ppN)
   return(list.demogr)
   

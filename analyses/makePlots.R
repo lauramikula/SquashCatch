@@ -517,6 +517,13 @@ plotDeltaShift_trials <- function(df, save.as = 'svg') {
       dataD <- dfdata %>%
         filter(Day == d[j] & trialsN %in% tr[[j]])
       
+      #perturbation schedule
+      if (j==1) {
+        pert_sched <- list('No perturbation','Trained perturbation')
+      } else {
+        pert_sched <- list('Trained perturbation', 'Untrained perturbation', 'No perturbation')
+      }
+      
       #get number of participants for each task version (n) and each group (n.gp)
       n.gp <- demoG$N %>%
         filter(expName == expNames[i] & Day == d[j]) %>%
@@ -530,21 +537,28 @@ plotDeltaShift_trials <- function(df, save.as = 'svg') {
         title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
       }
       
+      #add perturbation schedule to title
+      title_pert <- lapply(pert_sched, function(x) sprintf('%s - %s', title, x))
+      
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
       
       #make plots
       dataD %<>% split(., .$tasksNum)
       
-      p <- lapply(dataD, function(x) ggplot(x, aes(x = interceptDelta, y = trialsN, fill = Group)) +
-                    geom_vline(xintercept = pdlL, linetype = 'solid') +
-                    geom_vline(xintercept = pdlC, linetype = 'dashed') +
-                    geom_density_ridges(alpha = 0.5, size = 0.4, scale = 1.5) +
-                    theme_ridges() +
-                    theme(legend.position = 'bottom') +
-                    scale_fill_discrete(name = 'Group', labels = lbl) +
-                    xlim(-1, 0.4) +
-                    labs(title = title,
-                         x = 'Distance between paddle and ball (a.u.)', y = 'Trials'))
+      mkplot <- function(x, ttl) {
+        ggplot(x, aes(x = interceptDelta, y = trialsN, fill = Group)) +
+          geom_vline(xintercept = pdlL, linetype = 'solid') +
+          geom_vline(xintercept = pdlC, linetype = 'dashed') +
+          geom_density_ridges(alpha = 0.5, size = 0.4, scale = 1.5) +
+          theme_ridges() +
+          theme(legend.position = 'bottom') +
+          scale_fill_discrete(name = 'Group', labels = lbl) +
+          xlim(-1, 0.4) +
+          labs(title = ttl,
+               x = 'Distance between paddle and ball (a.u.)', y = 'Trials')
+      }
+
+      p <- mapply(mkplot, dataD, title_pert, SIMPLIFY = F)
       
       plist[[j]] = p
       
@@ -552,8 +566,9 @@ plotDeltaShift_trials <- function(df, save.as = 'svg') {
     
     #save plots as svg or pdf
     plot <- ggarrange(
-      ggarrange(plotlist = plist[[1]], ncol = 3), #1st row for day 1
-      ggarrange(plotlist = plist[[2]], ncol = 3, 
+      ggarrange(plotlist = plist[[1]], ncol = 3,
+                common.legend = T, legend = 'bottom'), #1st row for day 1
+      ggarrange(plotlist = plist[[2]], ncol = 3,
                 common.legend = T, legend = 'bottom'), #2nd row for day 2
       nrow = 2
     )
