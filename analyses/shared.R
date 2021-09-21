@@ -71,14 +71,21 @@ getSurvey <- function () {
              'Q8.4_1',
              'Q8.4_2')
   
-  # survey <- survey %>%
-  #   mutate(across(all_of(toCvt), as.numeric),
-  #          group = recode(group, `1` = 'train_horiz', `2` = 'train_tilt'))
+  #suppress warnings because they only appear when running the getSurvey function
+  suppressWarnings(
+    survey <- survey %>%
+      mutate(across(all_of(toCvt), as.numeric),
+             group = recode(group, `1` = 'train_horiz', `2` = 'train_tilt')) #Group: 1 = train_horiz and 2 = train_tilt
+  )
   
   #set labels from original csv file
   survey <- survey %>% 
     set_label(label = labs)
   survey <- survey[-1, ]
+  
+  #remove rows with NA in group
+  survey %<>% 
+    drop_na(group)
   
   return(survey)
   
@@ -173,6 +180,107 @@ getCompleteData <- function (dfdata, dfsurvey) {
   
   df.list <- list('data'=dfdata, 'survey'=dfsurvey)
   list2env(df.list, envir = .GlobalEnv)
+  
+}
+
+
+removeOutlBounceTime_participant <- function (dfdata, dfsurvey) {
+  
+  dT = 0.1 #timing tolerance relative to median (in s)
+  
+  #compute median bounce times for each participant
+  bounceT <- dfdata %>% 
+    group_by(participant, ballSpeed) %>% 
+    summarise(median = median(bounceTime, na.rm = TRUE),
+              maxi = max(bounceTime),
+              mini = min(bounceTime),
+              n = n(),
+              .groups = 'drop')
+  
+  #compare with median bounce time across all participants
+  bounceT %<>% 
+    group_by(ballSpeed) %>% 
+    mutate(overall_med = median(median, na.rm = T),
+           within_med_dT = median < overall_med + dT & median > overall_med - dT,
+           within = cut(median, breaks = c(-Inf, median(median)-dT, median(median)+dT, Inf),
+                        labels = c('faster', 'normal', 'slower'))) %>% 
+    ungroup()
+  
+  #make plot
+  bounceTplot <- ggplot(bounceT, aes(x = factor(ballSpeed), y = median)) +
+    geom_jitter(alpha = 0.2, color = 'black') +
+    geom_pointrange(aes(y = overall_med, 
+                        ymin = overall_med - dT, ymax = overall_med + dT),
+                    color = 'blue', size = 0.4, shape = 0) +
+    theme_classic() +
+    labs(y = 'Median bounce time (s)', x = 'Ball speed')
+  #save plot
+  fname = './docs/OutliersBounceTime.svg'
+  ggsave(file=fname, plot=bounceTplot)
+  
+  #participants to remove
+  rm_fast <- unique(bounceT$participant[which(bounceT$within == 'faster')])
+  rm_slow <- unique(bounceT$participant[which(bounceT$within == 'slower')])
+  
+  #print message in console
+  cat(
+    'Bounce time outliers ------\nNumber of participants removed:',
+    length(unique(bounceT$participant[which(bounceT$within != 'normal')])),
+    '\n', length(rm_fast), 'had faster timings:', rm_fast,
+    '\n', length(rm_slow), 'had slower timings:', rm_slow, '\n'
+  )
+  
+  #remove participants from data and survey
+  dfdata %<>%
+    filter(!participant %in% rm_fast,
+           !participant %in% rm_slow)
+  dfsurvey %<>%
+    filter(!id %in% rm_fast,
+           !id %in% rm_slow)
+  
+  df.list <- list('data'=dfdata, 'survey'=dfsurvey)
+  list2env(df.list, envir = .GlobalEnv)
+  
+}
+
+
+removeOutlBounceTime_trial <- function (dfdata, dfsurvey) {
+  
+  dT = 0.1 #timing tolerance relative to median (in s)
+  
+  #initial number of trials
+  tr_start <- nrow(dfdata)
+  
+  #compare bounce time on each trial to median bounce time computed for each participant
+  bounceT <- dfdata %>% 
+    select(participant, Day, tasksNum, trialsNum, ballSpeed, bounceTime) %>% 
+    group_by(participant, ballSpeed) %>% 
+    mutate(med_indiv = median(bounceTime, na.m = T),
+           within_med_dT = bounceTime < med_indiv + dT & bounceTime > med_indiv - dT) %>% 
+    ungroup()
+  
+  #remove trials from data
+  dfdata <- dfdata[which(bounceT$within_med_dT == T), ]
+  
+  #final number of trials
+  tr_end <- nrow(dfdata)
+  
+  #percentage of trials removed
+  tr_percent <- (tr_start - tr_end)/tr_start*100
+  cat(
+    'Bounce time outliers ------\nNumber of trials removed:',
+    tr_start - tr_end,
+    sprintf('(%.3f%% of trials)', tr_percent), '\n'
+  )
+  
+  df.list <- list('data'=dfdata)
+  list2env(df.list, envir = .GlobalEnv)
+  
+  # #see how many trials per block have to be removed
+  # bounceT_sum <- bounceT %>% 
+  #   group_by(participant, Day, tasksNum) %>% 
+  #   filter(within_med_dT == F) %>% 
+  #   summarise(n = n(), .groups = 'drop')
   
 }
 
@@ -290,15 +398,49 @@ getScore <- function (df) {
 }
 
 
-# getKinematics <- function (df) {
+getKinematics <- function (df) {
+
+  dfcursor <- df %>%
+    separate_rows(ballPosX, ballPosY, paddlePosX, paddlePosY, trialMouse.time,
+                  sep = ',|\\[|\\]', convert = T) %>%
+    select(ballPosX, ballPosY, paddlePosX, paddlePosY, trialMouse.time, alphaChoice, 
+           pertChoice, horOrTilt, hitOrMiss, trialsNum, tasksNum, ballSpeed, 
+           participant, Group, Day, expName) %>%
+    drop_na(ballPosX)
+
+  return(dfcursor)
+
+}
+
+
+# getOutliersBallTime <- function(df) {
 #   
-#   df <- df %>% 
-#     separate_rows(ballPosX, ballPosY, paddlePosX, paddlePosY, sep = ',|\\[|\\]', convert = T) %>% 
-#     select(ballPosX, ballPosY, paddlePosX, paddlePosY, alphaChoice, pertChoice, horOrTilt,
-#            hitOrMiss, trialsNum, tasksNum, ballSpeed, participant, Group, Day, expName) %>% 
-#     drop_na(ballPosX)
+#   dfballtime <- df %>% 
+#     group_by(participant, Day, tasksNum, trialsNum) %>%
+#     filter(sign(ballPosX) == sign(alphaChoice)) %>% 
+#     slice(1) %>% 
+#     ungroup() 
+#     # filter(trialMouse.time > 0.3 & trialMouse.time < 0.7)
 #   
-#   return(df)
+#   return(dfballtime)
+#   
+# }
+
+
+# getCursorTiming <- function (df) {
+#   
+#   #keep the first frame/timing where the paddle crosses the middle of the screen
+#   dfcursortime <- df %>% 
+#     group_by(participant, Day, tasksNum, trialsNum) %>% 
+#     filter(sign(paddlePosX) == sign(alphaChoice)) %>%
+#     slice(1)
+#   
+#   #remove times > 0.9s and keep only hits
+#   dfcursortime %<>% 
+#     filter(trialMouse.time < 0.9) 
+#     # filter(hitOrMiss == 'hit')
+#   
+#   return(dfcursortime)
 #   
 # }
 

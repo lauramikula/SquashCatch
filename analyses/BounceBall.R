@@ -13,27 +13,49 @@ data <- getPavlovia()
 getCompleteData(data, survey)
 
 
-#parameters and demographics ----
+#pre-processing ----
+
+##do some individual plots ----
+
+#individual success rate
+plotSuccessRateIndiv(data)
+
+#individual interceptDelta
+plotDeltaIndiv(data)
+
+
+##remove outliers ----
+
+#timings during experiment (bounceTime)
+removeOutlBounceTime_participant(data, survey)
+removeOutlBounceTime_trial(data, survey)
+
+
+##get parameters and demographics ----
 
 params <- getParams(data)
 perturb <- getPerturb(data)
 demoG <- getDemogr(data, survey)
 
 
+##get cursor data ----
 
-#success rate ----
+datacursor <- getKinematics(data)
+
+
+
+#data analysis ----
+
+##success rate ----
 
 #get data
 dataSucc <- data %>% 
   filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
   group_by(expName, participant, Group, Day, tasksNum) %>% 
-  summarise(hitPercent = mean(HitMiss, rm.na=T)*100,
+  summarise(hitPercent = mean(HitMiss, rm.na = T)*100,
             n = n(),
             .groups = 'drop')
 
-
-#plots for each individual participant
-plotSuccessRateIndiv(dataSucc)
 
 #plots averaged across participants
 plotSuccessRate(dataSucc, save.as = 'pdf')
@@ -55,7 +77,7 @@ plotSuccessRate(dataSucc, save.as = 'pdf')
 
 
 
-#proportion of trials with 0, 5 and 10 points ----
+##proportion of trials with 0, 5 and 10 points ----
 
 dataScore <- getScore(data)
 
@@ -63,7 +85,7 @@ plotScore(dataScore, save.as = 'pdf')
 
 
 
-#interceptDelta ----
+##interceptDelta ----
 
 #interceptDelta is the distance between the paddle and the ball in arbitrary units
 
@@ -80,9 +102,6 @@ dataDelta <- data %>%
             .groups = 'drop')
 
 
-#plots for each individual participant
-plotDeltaIndiv(data)
-
 #plots averaged across participants
 plotDelta(dataDelta, save.as = 'pdf')
 
@@ -97,7 +116,7 @@ plotDelta(dataDelta, save.as = 'pdf')
 
 
 
-#ridgeline plots of interceptDelta ----
+##ridgeline plots of interceptDelta ----
 
 #across blocks
 plotDeltaShift_blocks(data, save.as = 'pdf')
@@ -107,7 +126,7 @@ plotDeltaShift_trials(data, save.as = 'pdf')
 
 
 
-#interceptDelta as a ratio ----
+##interceptDelta as a ratio ----
 
 data <- getDeltaRatio(data)
 
@@ -128,7 +147,9 @@ plotDeltaRatio(dataDeltaRatio, save.as = 'pdf')
 
 
 
-#timings depending on OS and browser ----
+#exploratory analysis ----
+
+##timings depending on OS and browser ----
 timings <- data %>% 
   select(Browser, alphaChoice, pertChoice, tasksNum, ballSpeed, connectTime, bounceTime,
          participant, Group, Day, OS, hitOrMiss) %>% 
@@ -154,12 +175,11 @@ unique(long$participant)
 
 
 
-#look at cursor data ----
-cursor.dt <- getKinematics(data)
+##look at cursor data ----
 
-testCurs0 <- cursor.dt %>% 
+testCurs0 <- datacursor %>% 
   filter(alphaChoice == -80 & ballSpeed == 0.05 & pertChoice == 0)
-testCurs1 <- cursor.dt %>% 
+testCurs1 <- datacursor %>% 
   filter(alphaChoice == -80 & ballSpeed == 0.05 & pertChoice == -9)
 
 plot(testCurs0$ballPosX, testCurs0$ballPosY, xlim = c(-0.75, 0.1), ylim = c(-0.37, 0.37))
@@ -168,7 +188,7 @@ rect(-0.2 - paddleV1[1], -0.3 - paddleV1[2], -0.2 + paddleV1[1], -0.3 + paddleV1
 
 
 
-#look at the ball position at intersection ----
+##look at the ball position at intersection ----
 ballEndPos <- data %>%
   mutate_at(c('pertChoice', 'alphaChoice'), as.factor) %>%
   group_by(expName, alphaChoice, pertChoice, ballSpeed) %>%

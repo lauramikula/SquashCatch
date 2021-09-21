@@ -1,6 +1,99 @@
 source('analyses/shared.R')
 
 
+#before removing timing outliers ----
+
+#individual plots
+
+plotSuccessRateIndiv <- function (df) {
+  
+  #compute success rates
+  df <- df %>% 
+    group_by(expName, participant, Group, Day, tasksNum) %>% 
+    summarise(hitPercent = mean(HitMiss, rm.na = T)*100,
+              n = n(),
+              .groups = 'drop')
+  
+  pp <- unique(df$participant)
+  
+  pdf('./docs/SuccRate_indiv.pdf')
+  par(mfrow = c(3,3))
+  
+  for (i in 1:length(pp)) {
+    
+    for (d in 1:2) {
+      
+      dataN <- df %>% 
+        filter(participant %in% pp[i] & Day == d)
+      
+      taskV <- unique(dataN$expName)
+      
+      if (nrow(dataN) == 0) {
+        next
+      }
+      
+      plot(dataN$tasksNum, dataN$hitPercent,
+           xlab = 'Blocks', ylab = 'Successful trials (%)',
+           main = sprintf('%s\nParticipant %s - Day %s', taskV, pp[i], d),
+           ylim = c(0, 100), type = 'b', pch = 20)
+      if (d == 1) {
+        abline(v = 4.5, col = 'red', lty = 2)
+      } else if (d == 2) {
+        abline(v = c(2.5, 3.5), col = 'red', lty = 2)
+      }
+      
+    }
+    
+  }
+  
+  dev.off()
+  
+}
+
+
+plotDeltaIndiv <- function (df) {
+  
+  df %<>% 
+    select(trialsNum, tasksNum, interceptDelta, participant, Group, Day, expName) %>% 
+    mutate(trialsN = trialsNum + (tasksNum-1)*50)
+  
+  pp <- unique(df$participant)
+  
+  pdf('./docs/interceptDelta_indiv.pdf')
+  par(mfrow = c(2,2))
+  
+  for (i in 1:length(pp)) {
+    
+    for (d in 1:2) {
+      
+      dataN <- df %>% 
+        filter(participant %in% pp[i] & Day == d)
+      
+      taskV <- unique(dataN$expName)
+      
+      if (nrow(dataN) == 0) {
+        next
+      }
+      
+      plot(dataN$trialsN, dataN$interceptDelta,
+           xlab = 'trials', ylab = "intercept delta",
+           main = sprintf('%s\nParticipant %s - Day %s', taskV, pp[i], d),
+           ylim = c(-1, 0.4), pch = 20, type = 'b',
+           col = rgb(0,0,0, alpha = 0.5))
+      abline(v = seq(50, 499, 50), col = 'blue', lty = 2)
+      
+    }
+    
+  }
+  
+  dev.off()
+  
+}
+
+
+
+#after removing timing outliers ----
+
 plotSuccessRate <- function(df, save.as = 'svg') {
   
   #show a message if one of the arguments is missing?
@@ -114,45 +207,6 @@ plotSuccessRate <- function(df, save.as = 'svg') {
   if (save.as == 'pdf') {
     dev.off()
   }
-  
-}
-
-
-plotSuccessRateIndiv <- function (df) {
-  
-  pp <- unique(df$participant)
-  
-  pdf('./docs/SuccRate_indiv.pdf')
-  par(mfrow = c(3,3))
-  
-  for (i in 1:length(pp)) {
-    
-    for (d in 1:2) {
-      
-      dataN <- df %>% 
-        filter(participant %in% pp[i] & Day == d)
-      
-      taskV <- unique(dataN$expName)
-      
-      if (nrow(dataN) == 0) {
-        next
-      }
-      
-      plot(dataN$tasksNum, dataN$hitPercent,
-           xlab = 'Blocks', ylab = 'Successful trials (%)',
-           main = sprintf('%s\nParticipant %s - Day %s', taskV, pp[i], d),
-           ylim = c(0, 100), type = 'b', pch = 20)
-      if (d == 1) {
-        abline(v = 4.5, col = 'red', lty = 2)
-      } else if (d == 2) {
-        abline(v = c(2.5, 3.5), col = 'red', lty = 2)
-      }
-      
-    }
-    
-  }
-  
-  dev.off()
   
 }
 
@@ -328,6 +382,7 @@ plotDelta <- function(df, save.as = 'svg') {
               text = element_text(size = 15),
               plot.margin = unit(c(0,2,0,2), 'lines')) + #add margins around individual plots (top, right, bottom, left)
         scale_color_discrete(name = 'Group', labels = lbl) +
+        scale_fill_discrete(name = 'Group', labels = lbl) +
         scale_x_continuous(breaks = seq(0, 500, 50)) +
         labs(title = title, x = 'Trials', y = 'Distance between paddle and ball (a.u.)') +
         ylim(-0.28, 0.15)
@@ -353,46 +408,6 @@ plotDelta <- function(df, save.as = 'svg') {
     dev.off()
   }
 
-}
-
-
-plotDeltaIndiv <- function (df) {
-  
-  df %<>% 
-    select(trialsNum, tasksNum, interceptDelta, participant, Group, Day, expName) %>% 
-    mutate(trialsN = trialsNum + (tasksNum-1)*50)
-  
-  pp <- unique(df$participant)
-  
-  pdf('./docs/interceptDelta_indiv.pdf')
-  par(mfrow = c(2,2))
-  
-  for (i in 1:length(pp)) {
-    
-    for (d in 1:2) {
-      
-      dataN <- df %>% 
-        filter(participant %in% pp[i] & Day == d)
-      
-      taskV <- unique(dataN$expName)
-      
-      if (nrow(dataN) == 0) {
-        next
-      }
-      
-      plot(dataN$trialsN, dataN$interceptDelta,
-           xlab = 'trials', ylab = "intercept delta",
-           main = sprintf('%s\nParticipant %s - Day %s', taskV, pp[i], d),
-           ylim = c(-1, 0.4), pch = 20, type = 'b',
-           col = rgb(0,0,0, alpha = 0.5))
-      abline(v = seq(50, 499, 50), col = 'blue', lty = 2)
-      
-    }
-    
-  }
-  
-  dev.off()
-  
 }
 
 
@@ -674,6 +689,156 @@ plotDeltaRatio <- function(df, save.as = 'svg') {
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/interceptDeltaRatio_avg_%s.svg', expNames[i])
       ggsave(file=fname, plot=plot, width=17, height=8)
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
+plotCursorTiming <- function(df, save.as = 'svg') {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/CursorTiming_avg.pdf', width=15, height=7)
+  }
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      mutate(tasksNum = factor(tasksNum))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Day %s\nN = %s', d[j], n)
+      } else {
+        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+      }
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot(dataD, aes(x = tasksNum, y = trialMouse.time, color = Group)) +
+        geom_boxplot() +
+        theme_classic() +
+        theme(legend.position = 'top') +
+        scale_color_discrete(name = 'Group', labels = lbl) +
+        labs(title = title, x = 'Block #', y = 'Time to cross mid-screen (s)') +
+        ylim(0.1, 0.9)
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plotlist = plist, ncol = 2, nrow = 1)
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/CursorTiming_avg_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=15, height=7)
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
+plotOutliersTime <- function(df, save.as = 'svg') {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/OutliersTime.pdf', width=15, height=7)
+  }
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      mutate(tasksNum = factor(tasksNum))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Day %s\nN = %s', d[j], n)
+      } else {
+        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+      }
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot(dataD, aes(x = tasksNum, y = trialMouse.time, color = Group)) +
+        geom_boxplot() +
+        theme_classic() +
+        theme(legend.position = 'top') +
+        scale_color_discrete(name = 'Group', labels = lbl) +
+        labs(title = title, x = 'Block #', y = 'Time ball crosses mid-screen (s)') +
+        ylim(0, 2)
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plotlist = plist, ncol = 2, nrow = 1)
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/OutliersTime_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=15, height=7)
     } else {
       print(plot)
     }
