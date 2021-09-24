@@ -323,13 +323,11 @@ plotDelta <- function(df, save.as = 'svg') {
       mutate(tasksNum = factor(tasksNum))
     
     #to plot the size of the perturbation
-    pert <- perturb[[i]]$perturb_size * -1
-    pertPlt <- list(data.frame(xstart = rep(200, times = length(pert)),
-                               xend = rep(500, times = length(pert)),
-                               y = pert),
-                    data.frame(xstart = rep(0, times = length(pert)),
-                               xend = rep(150, times = length(pert)),
-                               y = pert))
+    maxtrialsD1 <- max(dfdata[which(dfdata$Day == 1), ]$trialsN)
+    pertPlt <- data.frame(xstart = c(200, 0), 
+                          xend = c(maxtrialsD1, 150), 
+                          ystart = rep(max(perturb[[expNames[i]]]$perturb_size)*-1, times = 2), 
+                          yend = rep(min(perturb[[expNames[i]]]$perturb_size)*-1, times = 2))
     
     #get the number of days
     d <- unique(df$Day)
@@ -346,13 +344,6 @@ plotDelta <- function(df, save.as = 'svg') {
         .$n
       n <- sum(n.gp)
       
-      # #to plot the size of the perturbation
-      # if (j == 1) {
-      #   pertPlt = list(x = c(200, 500), y_mn = c(-0.22367, -0.22367), y = c(-0.2504, -0.2022)) #0.22105 for median and 0.22367 for mean
-      # } else {
-      #   pertPlt = list(x = c(0, 150), y_mn = c(-0.22367, -0.22367), y = c(-0.2504, -0.2022))
-      # }
-      
       #set title and labels
       if (save.as == 'svg') {
         title <- sprintf('Day %s\nN = %s', d[j], n)
@@ -366,15 +357,13 @@ plotDelta <- function(df, save.as = 'svg') {
       p <- ggplot(dataD, aes(x = trialsN, y = iDelta_mn, 
                              color = Group, fill = Group, 
                              group = interaction(Group, tasksNum))) + #group = interaction to dissociate between blocks and groups
+        annotate('rect', 
+                 xmin = pertPlt$xstart[j], xmax = pertPlt$xend[j],
+                 ymin = pertPlt$ystart[j], ymax = pertPlt$yend[j],
+                 alpha = 0.4, fill = 'grey') +
         geom_hline(yintercept = pdlL, linetype = 'dotted') +
         geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4, alpha = 0.7) +
-        # geom_segment(x = pertPlt[[j]]$xstart, y = pertPlt[[j]]$y, 
-        #              xend = pertPlt[[j]]$xend, yend = pertPlt[[j]]$y,
-        #              color = 'black') +
-        # geom_segment(x = pertPlt$x[1], y = pertPlt$y_mn[1], xend = pertPlt$x[2], yend = pertPlt$y_mn[2],
-        #              linetype = 'longdash', color = 'black') +
         geom_point(alpha = 0.35, size = 2.8) +
-        # geom_pointrange(aes(ymin = iDelta_mn - iDelta_sd, ymax = iDelta_mn + iDelta_sd), alpha = 0.35) +
         geom_smooth(se = T, alpha = 0.3, span = 0.9, size = 1) +
         
       theme_classic() +
@@ -702,13 +691,13 @@ plotDeltaRatio <- function(df, save.as = 'svg') {
 }
 
 
-plotCursorTiming <- function(df, save.as = 'svg') {
+plotTimingMidScreen <- function(df, save.as = 'svg') {
   
   #show a message if one of the arguments is missing?
   
   #filename to save figure
   if (save.as == 'pdf') {
-    pdf('./docs/CursorTiming_avg.pdf', width=15, height=7)
+    pdf('./docs/TimingMidScreen_avg.pdf', width=15, height=7)
   }
   
   for (i in 1:length(expNames)) {
@@ -750,7 +739,8 @@ plotCursorTiming <- function(df, save.as = 'svg') {
         theme_classic() +
         theme(legend.position = 'top') +
         scale_color_discrete(name = 'Group', labels = lbl) +
-        labs(title = title, x = 'Block #', y = 'Time to cross mid-screen (s)') +
+        labs(title = title, x = 'Block #', 
+             y = 'Time to cross mid-screen (s) ("hit" trials only)') +
         ylim(0.1, 0.9)
       
       plist[[j]] = p
@@ -762,7 +752,7 @@ plotCursorTiming <- function(df, save.as = 'svg') {
     
     #filename to save figure
     if (save.as == 'svg') {
-      fname = sprintf('./docs/figures/CursorTiming_avg_%s.svg', expNames[i])
+      fname = sprintf('./docs/figures/TimingMidScreen_avg_%s.svg', expNames[i])
       ggsave(file=fname, plot=plot, width=15, height=7)
     } else {
       print(plot)
@@ -777,13 +767,13 @@ plotCursorTiming <- function(df, save.as = 'svg') {
 }
 
 
-plotOutliersTime <- function(df, save.as = 'svg') {
+plotTimingWithinIntercept <- function(df, save.as = 'svg') {
   
   #show a message if one of the arguments is missing?
   
   #filename to save figure
   if (save.as == 'pdf') {
-    pdf('./docs/OutliersTime.pdf', width=15, height=7)
+    pdf('./docs/TimingWithinIntercept_avg.pdf', width=15, height=7)
   }
   
   for (i in 1:length(expNames)) {
@@ -825,8 +815,9 @@ plotOutliersTime <- function(df, save.as = 'svg') {
         theme_classic() +
         theme(legend.position = 'top') +
         scale_color_discrete(name = 'Group', labels = lbl) +
-        labs(title = title, x = 'Block #', y = 'Time ball crosses mid-screen (s)') +
-        ylim(0, 2)
+        labs(title = title, x = 'Block #', 
+             y = 'Time to reach intercept zone (s) ("hit" trials only)') +
+        ylim(0.1, 0.9)
       
       plist[[j]] = p
       
@@ -837,7 +828,7 @@ plotOutliersTime <- function(df, save.as = 'svg') {
     
     #filename to save figure
     if (save.as == 'svg') {
-      fname = sprintf('./docs/figures/OutliersTime_%s.svg', expNames[i])
+      fname = sprintf('./docs/figures/TimingWithinIntercept_avg_%s.svg', expNames[i])
       ggsave(file=fname, plot=plot, width=15, height=7)
     } else {
       print(plot)
@@ -850,4 +841,79 @@ plotOutliersTime <- function(df, save.as = 'svg') {
   }
   
 }
+
+
+# plotOutliersTime <- function(df, save.as = 'svg') {
+#   
+#   #show a message if one of the arguments is missing?
+#   
+#   #filename to save figure
+#   if (save.as == 'pdf') {
+#     pdf('./docs/OutliersTime.pdf', width=15, height=7)
+#   }
+#   
+#   for (i in 1:length(expNames)) {
+#     
+#     plist <- list() #empty list to store several plots
+#     
+#     #get data for each version of the experiment
+#     dfdata <- df %>%
+#       filter(expName == expNames[i]) %>%
+#       mutate(tasksNum = factor(tasksNum))
+#     
+#     #get the number of days
+#     d <- unique(df$Day)
+#     
+#     for (j in 1:length(d)) {
+#       
+#       #get data for each day
+#       dataD <- dfdata %>%
+#         filter(Day == d[j])
+#       
+#       #get number of participants for each task version (n) and each group (n.gp)
+#       n.gp <- demoG$N %>%
+#         filter(expName == expNames[i] & Day == d[j]) %>%
+#         .$n
+#       n <- sum(n.gp)
+#       
+#       #set title and labels
+#       if (save.as == 'svg') {
+#         title <- sprintf('Day %s\nN = %s', d[j], n)
+#       } else {
+#         title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+#       }
+#       
+#       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+#       
+#       #make plots
+#       p <- ggplot(dataD, aes(x = tasksNum, y = trialMouse.time, color = Group)) +
+#         geom_boxplot() +
+#         theme_classic() +
+#         theme(legend.position = 'top') +
+#         scale_color_discrete(name = 'Group', labels = lbl) +
+#         labs(title = title, x = 'Block #', y = 'Time ball crosses mid-screen (s)') +
+#         ylim(0, 2)
+#       
+#       plist[[j]] = p
+#       
+#     }
+#     
+#     #save plots as svg or pdf
+#     plot <- ggarrange(plotlist = plist, ncol = 2, nrow = 1)
+#     
+#     #filename to save figure
+#     if (save.as == 'svg') {
+#       fname = sprintf('./docs/figures/OutliersTime_%s.svg', expNames[i])
+#       ggsave(file=fname, plot=plot, width=15, height=7)
+#     } else {
+#       print(plot)
+#     }
+#     
+#   }
+#   
+#   if (save.as == 'pdf') {
+#     dev.off()
+#   }
+#   
+# }
 

@@ -340,10 +340,11 @@ getParams <- function (dfdata) {
   param.list <- list('expNames'=expNames, 'Gps'=Gps)
   list2env(param.list, envir = .GlobalEnv)
   
-  paddle <- data.frame(x = c(0.075, 0.075, 0.05), #length of the paddle in different task versions
-                       y = c(0.0125, 0.0125, 0.0125), #height of the paddle in different task versions
-                       MaxPts = c(0.025, 0.025, 0.025)) #length of the paddle where participants get maximum points
-  ball <- c(0.0125) #diameter of the ball
+  paddle <- data.frame(x = c(0.075, 0.075, 0.05), #1/2 length of the paddle in different task versions
+                       y = c(0.0125, 0.0125, 0.0125), #1/2 height of the paddle in different task versions
+                       MaxPts = c(0.025, 0.025, 0.025)) #1/2 length of the paddle where participants get maximum points
+  row.names(paddle) <- expNames
+  ball <- c(0.025) #diameter of the ball
   
   list.p <- list('ball'=ball, 'paddle'=paddle)
   return(list.p)
@@ -403,9 +404,9 @@ getKinematics <- function (df) {
   dfcursor <- df %>%
     separate_rows(ballPosX, ballPosY, paddlePosX, paddlePosY, trialMouse.time,
                   sep = ',|\\[|\\]', convert = T) %>%
-    select(ballPosX, ballPosY, paddlePosX, paddlePosY, trialMouse.time, alphaChoice, 
-           pertChoice, horOrTilt, hitOrMiss, trialsNum, tasksNum, ballSpeed, 
-           participant, Group, Day, expName) %>%
+    select(ballPosX, ballPosY, paddlePosX, paddlePosY, interceptBall, 
+           trialMouse.time, alphaChoice, pertChoice, horOrTilt, hitOrMiss, 
+           trialsNum, tasksNum, ballSpeed, participant, Group, Day, expName) %>%
     drop_na(ballPosX)
 
   return(dfcursor)
@@ -413,36 +414,42 @@ getKinematics <- function (df) {
 }
 
 
-# getOutliersBallTime <- function(df) {
-#   
-#   dfballtime <- df %>% 
-#     group_by(participant, Day, tasksNum, trialsNum) %>%
-#     filter(sign(ballPosX) == sign(alphaChoice)) %>% 
-#     slice(1) %>% 
-#     ungroup() 
-#     # filter(trialMouse.time > 0.3 & trialMouse.time < 0.7)
-#   
-#   return(dfballtime)
-#   
-# }
+getCursorTimingMidScreen <- function (df) {
+
+  #keep the first frame/timing after the cursor crosses the middle of the screen
+  dfcursortime <- df %>%
+    group_by(participant, Day, tasksNum, trialsNum) %>%
+    filter(sign(paddlePosX) == sign(alphaChoice)) %>%
+    slice(1) %>% 
+    ungroup()
+
+  #remove times > 0.9s and keep only hits
+  dfcursortime %<>%
+    # filter(trialMouse.time < 0.9)
+    filter(hitOrMiss == 'hit')
+
+  return(dfcursortime)
+
+}
 
 
-# getCursorTiming <- function (df) {
-#   
-#   #keep the first frame/timing where the paddle crosses the middle of the screen
-#   dfcursortime <- df %>% 
-#     group_by(participant, Day, tasksNum, trialsNum) %>% 
-#     filter(sign(paddlePosX) == sign(alphaChoice)) %>%
-#     slice(1)
-#   
-#   #remove times > 0.9s and keep only hits
-#   dfcursortime %<>% 
-#     filter(trialMouse.time < 0.9) 
-#     # filter(hitOrMiss == 'hit')
-#   
-#   return(dfcursortime)
-#   
-# }
+getCursorTimingWithinIntercept <- function (df) {
+  
+  #get 1/2 paddle length (in params$paddle$x)
+  
+  #keep the first frame/timing after the cursor enter intercept zone
+  dfcursortime <- df %>%
+    group_by(participant, Day, tasksNum, trialsNum) %>%
+    filter(sign(paddlePosX) == sign(alphaChoice)) %>%
+    slice(1)
+  
+  # #keep only hits
+  # dfcursortime %<>%
+  #   filter(hitOrMiss == 'hit')
+  
+  return(dfcursortime)
+  
+}
 
 
 getDeltaRatio <- function (df) {

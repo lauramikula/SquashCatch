@@ -17,11 +17,11 @@ getCompleteData(data, survey)
 
 ##do some individual plots ----
 
-#individual success rate
-plotSuccessRateIndiv(data)
-
-#individual interceptDelta
-plotDeltaIndiv(data)
+# #individual success rate
+# plotSuccessRateIndiv(data)
+# 
+# #individual interceptDelta
+# plotDeltaIndiv(data)
 
 
 ##remove outliers ----
@@ -148,6 +148,58 @@ plotDeltaRatio(dataDeltaRatio, save.as = 'pdf')
 
 
 #exploratory analysis ----
+
+##look at timing when crossing mid-screen ----
+cursor_midscreen <- getCursorTimingMidScreen(datacursor)
+
+plotTimingMidScreen(cursor_midscreen, save.as = 'pdf')
+
+
+
+##look at timing when cursor is within intercept ----
+
+#within intercept = final X position of the ball +/- 1/2 paddle length
+
+dfcursortime <- datacursor %>% 
+  group_by(participant, Day, tasksNum, trialsNum) %>% 
+  # mutate(within_intercept = abs(paddlePosX - interceptBall) <= params$paddle[expName, 'x'])
+  filter(abs(paddlePosX - interceptBall) <= params$paddle[expName, 'x']) %>% 
+  slice(1) %>% 
+  ungroup()
+
+#very long to run, to improve!!!!!!!!!!!!!!!!!!!!!!!
+
+# getWithinIntercept <- function(df) {
+#   df %<>%
+#     mutate(within = abs(paddlePosX - interceptBall) <= paddleL) %>% 
+#     slice(1)
+# }
+# 
+# dfcursortime <- datacursor %>%
+#     group_by(expName) %>% 
+#     nest()
+#   dfcursortime$paddleL <- params$paddle$x
+#   dfcursortime %<>% 
+#     unnest(cols = c(data)) %>% 
+#     group_by(participant, Day, tasksNum, trialsNum)
+#   apply(dfcursortime, 1, function(x) {
+#     x$within <- abs(x$paddlePosX - x$interceptBall) <= x$paddleL; return(x)})
+#   fcursortime %<>%
+#     filter(within == 'TRUE') %>% 
+#     slice(1) %>% 
+#     ungroup()
+    
+  # dfcursortime %<>% 
+  #   unnest(cols = c(data)) %>% 
+  #   group_by(participant, Day, tasksNum, trialsNum) %>%
+  #   # filter(paddlePosX <= abs(paddlePosX - interceptBall)) %>%
+  #   filter(abs(paddlePosX - interceptBall) <= paddleL) %>% 
+  #   slice(1) %>% 
+  #   ungroup()
+  
+  plotTimingWithinIntercept(dfcursortime, save.as = 'pdf')
+
+
 
 ##timings depending on OS and browser ----
 timings <- data %>% 
