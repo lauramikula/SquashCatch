@@ -740,7 +740,7 @@ plotTimingMidScreen <- function(df, save.as = 'svg') {
         theme(legend.position = 'top') +
         scale_color_discrete(name = 'Group', labels = lbl) +
         labs(title = title, x = 'Block #', 
-             y = 'Time to cross mid-screen (s) ("hit" trials only)') +
+             y = 'Time to cross mid-screen (s) (hit trials only)') +
         ylim(0.1, 0.9)
       
       plist[[j]] = p
@@ -809,15 +809,26 @@ plotTimingWithinIntercept <- function(df, save.as = 'svg') {
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
       
-      #make plots
-      p <- ggplot(dataD, aes(x = tasksNum, y = trialMouse.time, color = Group)) +
+      # #make plots
+      # p <- ggplot(dataD, aes(x = tasksNum, y = trialMouse.time, color = Group)) +
+      #   geom_boxplot() +
+      #   theme_classic() +
+      #   theme(legend.position = 'top') +
+      #   scale_color_discrete(name = 'Group', labels = lbl) +
+      #   labs(title = title, x = 'Block #', 
+      #        y = 'Time to reach intercept zone (s) (hit trials only)') +
+      #   ylim(0.1, 0.9)
+      
+      #make plots with timing relative to bunce time
+      p <- ggplot(dataD, aes(x = tasksNum, y = timeReBounce, color = Group)) +
+        geom_hline(yintercept = 0, linetype = 'dashed') +
         geom_boxplot() +
         theme_classic() +
         theme(legend.position = 'top') +
         scale_color_discrete(name = 'Group', labels = lbl) +
         labs(title = title, x = 'Block #', 
-             y = 'Time to reach intercept zone (s) ("hit" trials only)') +
-        ylim(0.1, 0.9)
+             y = 'Time to reach intercept zone re: bounce time (s) (hit trials only)') +
+        ylim(-0.3, 0.6)
       
       plist[[j]] = p
       

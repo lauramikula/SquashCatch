@@ -404,7 +404,7 @@ getKinematics <- function (df) {
   dfcursor <- df %>%
     separate_rows(ballPosX, ballPosY, paddlePosX, paddlePosY, trialMouse.time,
                   sep = ',|\\[|\\]', convert = T) %>%
-    select(ballPosX, ballPosY, paddlePosX, paddlePosY, interceptBall, 
+    select(ballPosX, ballPosY, paddlePosX, paddlePosY, interceptBall, bounceTime, 
            trialMouse.time, alphaChoice, pertChoice, horOrTilt, hitOrMiss, 
            trialsNum, tasksNum, ballSpeed, participant, Group, Day, expName) %>%
     drop_na(ballPosX)
@@ -435,17 +435,21 @@ getCursorTimingMidScreen <- function (df) {
 
 getCursorTimingWithinIntercept <- function (df) {
   
-  #get 1/2 paddle length (in params$paddle$x)
-  
+  #1/2 paddle length is stored in params$paddle$x
   #keep the first frame/timing after the cursor enter intercept zone
-  dfcursortime <- df %>%
-    group_by(participant, Day, tasksNum, trialsNum) %>%
-    filter(sign(paddlePosX) == sign(alphaChoice)) %>%
-    slice(1)
+  dfcursortime <- df %>% 
+    group_by(participant, Day, tasksNum, trialsNum) %>% 
+    filter(abs(paddlePosX - interceptBall) <= params$paddle[expName, 'x']) %>% 
+    slice(1) %>% 
+    ungroup()
   
-  # #keep only hits
-  # dfcursortime %<>%
-  #   filter(hitOrMiss == 'hit')
+  #keep only hits
+  dfcursortime %<>%
+    filter(hitOrMiss == 'hit')
+  
+  #compare timing to enter intercept zone with bounceTime
+  dfcursortime %<>% 
+    mutate(timeReBounce = trialMouse.time - bounceTime)
   
   return(dfcursortime)
   

@@ -160,12 +160,9 @@ plotTimingMidScreen(cursor_midscreen, save.as = 'pdf')
 
 #within intercept = final X position of the ball +/- 1/2 paddle length
 
-dfcursortime <- datacursor %>% 
-  group_by(participant, Day, tasksNum, trialsNum) %>% 
-  # mutate(within_intercept = abs(paddlePosX - interceptBall) <= params$paddle[expName, 'x'])
-  filter(abs(paddlePosX - interceptBall) <= params$paddle[expName, 'x']) %>% 
-  slice(1) %>% 
-  ungroup()
+cursor_in_intercept <- getCursorTimingWithinIntercept(datacursor)
+
+plotTimingWithinIntercept(cursor_in_intercept, save.as = 'pdf')
 
 #very long to run, to improve!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -196,8 +193,6 @@ dfcursortime <- datacursor %>%
   #   filter(abs(paddlePosX - interceptBall) <= paddleL) %>% 
   #   slice(1) %>% 
   #   ungroup()
-  
-  plotTimingWithinIntercept(dfcursortime, save.as = 'pdf')
 
 
 
