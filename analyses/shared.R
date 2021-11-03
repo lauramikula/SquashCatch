@@ -2,11 +2,15 @@ library(sjlabelled)
 library(ggpubr) #for plots
 library(ggridges) #for density plots
 library(rstatix)
-# library(emmeans)
+library(emmeans)
+library(afex)
 library(svglite)
 library(viridis)
 library(tidyverse)
 library(magrittr)
+library(MASS)
+library(ggforce)
+library(Skillings.Mack)
 
 
 
@@ -136,7 +140,7 @@ getCompleteData <- function (dfdata, dfsurvey) {
   
   
   df <- dfdata %>% 
-    select(participant, Day, tasksNum, expName) %>% 
+    dplyr::select(participant, Day, tasksNum, expName) %>% 
     unique() %>% 
     group_by(participant, Day, expName) %>% 
     summarise(n = n(), .groups = 'drop') %>% 
@@ -184,9 +188,37 @@ getCompleteData <- function (dfdata, dfsurvey) {
 }
 
 
+getPaddleStart <- function (df) {
+  
+  #extract 1st value in paddlePosX (paddle position when the trial starts)
+  paddlePosXstart <- sapply(1:nrow(df),
+                             function(x){convertCellToNumVectorFirst(data[x,'paddlePosX'])})
+  
+  df %<>% 
+    mutate(paddlePosX_start = paddlePosXstart) %>% 
+    relocate(paddlePosX_start, .before = trialMouse.x)
+  
+  return(df)
+  
+}
+
+
 removeOutlBounceTime_participant <- function (dfdata, dfsurvey) {
   
   dT = 0.1 #timing tolerance relative to median (in s)
+  
+  #print message in console
+  is_N <- dfdata %>% 
+    filter(Day == 1) %>% 
+    distinct(expName, participant, .keep_all = T) %>% 
+    count(expName, Group)
+  total_N <- length(unique(dfdata$participant))
+  
+  cat(
+    'Before removing bounce time outliers ------\nTotal number of participants:',
+    total_N, '\n'
+  )
+  print(is_N)
   
   #compute median bounce times for each participant
   bounceT <- dfdata %>% 
@@ -253,8 +285,8 @@ removeOutlBounceTime_trial <- function (dfdata, dfsurvey) {
   
   #compare bounce time on each trial to median bounce time computed for each participant
   bounceT <- dfdata %>% 
-    select(participant, Day, tasksNum, trialsNum, ballSpeed, bounceTime) %>% 
-    group_by(participant, ballSpeed) %>% 
+    dplyr::select(participant, Day, tasksNum, trialsNum, ballSpeed, bounceTime) %>% 
+    group_by(participant, ballSpeed, Day) %>% 
     mutate(med_indiv = median(bounceTime, na.m = T),
            within_med_dT = bounceTime < med_indiv + dT & bounceTime > med_indiv - dT) %>% 
     ungroup()
@@ -356,7 +388,7 @@ getPerturb <- function(df) {
   
   df %<>% 
     filter(Day == 1 & tasksNum %in% c(4,5)) %>% 
-    select(expName, pertChoice, alphaChoice, interceptBall) %>% 
+    dplyr::select(expName, pertChoice, alphaChoice, interceptBall) %>% 
     distinct(expName, pertChoice, alphaChoice, .keep_all = T) %>% 
     mutate(pertChoice = recode(pertChoice, '-9' = 'perturb', '9' = 'perturb', 
                                '0' = 'notperturb')) %>% 
@@ -380,7 +412,7 @@ getScore <- function (df) {
                    params$paddle$x, params$paddle$MaxPts, SIMPLIFY = F) #set SIMPLIFY to FALSE to get a list instead of matrix
   
   df %<>%
-    select(participant, Group, Day, expName, trialsNum, tasksNum, ballSpeed,
+    dplyr::select(participant, Group, Day, expName, trialsNum, tasksNum, ballSpeed,
            interceptDelta) %>%
     filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
     split(., .$expName) %>% #split into list of dataframes to use mapply
@@ -404,9 +436,10 @@ getKinematics <- function (df) {
   dfcursor <- df %>%
     separate_rows(ballPosX, ballPosY, paddlePosX, paddlePosY, trialMouse.time,
                   sep = ',|\\[|\\]', convert = T) %>%
-    select(ballPosX, ballPosY, paddlePosX, paddlePosY, interceptBall, bounceTime, 
-           trialMouse.time, alphaChoice, pertChoice, horOrTilt, hitOrMiss, 
-           trialsNum, tasksNum, ballSpeed, participant, Group, Day, expName) %>%
+    dplyr::select(ballPosX, ballPosY, paddlePosX, paddlePosY, paddlePosX_start, 
+           interceptBall, bounceTime, connectTime, trialMouse.time, 
+           alphaChoice, pertChoice, horOrTilt, hitOrMiss, trialsNum, 
+           tasksNum, ballSpeed, participant, Group, Day, expName) %>%
     drop_na(ballPosX)
 
   return(dfcursor)
@@ -423,10 +456,13 @@ getCursorTimingMidScreen <- function (df) {
     slice(1) %>% 
     ungroup()
 
-  #remove times > 0.9s and keep only hits
+  #keep only hits
   dfcursortime %<>%
-    # filter(trialMouse.time < 0.9)
     filter(hitOrMiss == 'hit')
+  
+  #compare timing to enter intercept zone with bounceTime
+  dfcursortime %<>% 
+    mutate(timeReBounce = trialMouse.time - bounceTime)
 
   return(dfcursortime)
 
@@ -470,5 +506,54 @@ getDeltaRatio <- function (df) {
   
   return(df)
 
+}
+
+
+getDistanceTraveled <- function (df) {
+  
+  #keep only hit trials
+  dfcursor <- df %>% 
+    filter(hitOrMiss == 'hit')
+  
+  #compute % of distance traveled on each frame
+  dfcursor %<>%
+    #change sign of ball and paddle positions (to get rid of left and right)
+    #>0 is in direction of where the ball lands
+    #<0 is in the opposite direction
+    mutate(ballPosX = ifelse(alphaChoice < 0, ballPosX*-1, ballPosX),
+           paddlePosX = ifelse(alphaChoice < 0, paddlePosX*-1, paddlePosX),
+           paddlePosX_start = ifelse(alphaChoice < 0, paddlePosX_start*-1, paddlePosX_start),
+           interceptBall = ifelse(alphaChoice < 0, interceptBall*-1, interceptBall)) %>% 
+    group_by(participant, Day, tasksNum, trialsNum) %>% 
+    mutate(dist_traveled = (paddlePosX - dplyr::lag(paddlePosX)) / abs(paddlePosX_start - interceptBall) * 100,
+           timeReConnect = trialMouse.time - connectTime) %>% 
+    # group_by(participant, Day, tasksNum) %>% 
+    # mutate(dist_traveled = dist_traveled / abs(paddlePosX_start - interceptBall) * 100) %>% 
+    ungroup() %>% 
+    drop_na(dist_traveled) %>% 
+    filter(dist_traveled != 0) #remove when there is no cursor movement
+  
+  return(dfcursor)
+  
+}
+
+
+checkPerturbation <- function (df) {
+  
+  pertRad <- pi/20
+  # pertRad <- 0
+  noPert <- 0.6 / tan(df * pi/180)
+  Pert <- 0.6 * tan(((90 - df) * pi/180) + (pertRad)*2)
+  diffPert_noPert <- Pert - noPert
+  pertDeg <- pertRad * 180/pi
+  
+  checkPert <- data.frame(alphaChoice = df,
+                          perturb_deg = pertDeg,
+                          no_perturb = noPert,
+                          perturb = Pert,
+                          perturb_size = diffPert_noPert)
+  
+  return(checkPert)
+  
 }
 

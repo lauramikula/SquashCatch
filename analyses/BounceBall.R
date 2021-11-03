@@ -12,6 +12,9 @@ data <- getPavlovia()
 #within each session and missed on purpose
 getCompleteData(data, survey)
 
+#add start X position of the paddle
+data <- getPaddleStart(data)
+
 
 #pre-processing ----
 
@@ -52,7 +55,7 @@ datacursor <- getKinematics(data)
 dataSucc <- data %>% 
   filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
   group_by(expName, participant, Group, Day, tasksNum) %>% 
-  summarise(hitPercent = mean(HitMiss, rm.na = T)*100,
+  summarise(hitPercent = mean(HitMiss, na.rm = T)*100,
             n = n(),
             .groups = 'drop')
 
@@ -61,19 +64,55 @@ dataSucc <- data %>%
 plotSuccessRate(dataSucc, save.as = 'pdf')
 
 
-#stats
-# res.aov <- aov(hitPercent ~ factor(tasksNum) * Group, data = dataSucc)
-# summary(res.aov)
-# plot.tukey <- TukeyHSD(res.aov, which = 'tasksNum')
-# plot(plot.tukey, las = 1)
+###stats ----
 
-# model <- data %>% 
-#   filter(Day == 1) %>% 
-#   glm(HitMiss ~ Group * factor(tasksNum), family = binomial, data = .)
-# summary(model)
-# # summary(glht(model, mcp(rank = 'Tukey')))
-# emmeans(model, ~ Group * tasksNum, type = 'response')
-# anova(model, test='LRT')
+dataD <- dataSucc %>%
+  filter(expName == 'bounceV3' & Day == 2) %>%
+  convert_as_factor(tasksNum, Group, participant)
+
+#normality assumption
+dataD %>% 
+  group_by(Group, tasksNum) %>% 
+  shapiro_test(hitPercent)
+ggqqplot(dataD, 'hitPercent') + facet_grid(Group ~ tasksNum)
+
+#homogeneity of variance assumption
+dataD %>% 
+  group_by(tasksNum) %>% 
+  levene_test(hitPercent ~ Group) #assess homogeneity of the between factor
+
+#ANOVA
+res.aov <- aov_ez(data = dataD, dv = 'hitPercent', id = 'participant',
+                  between = 'Group', within = 'tasksNum')
+get_anova_table(res.aov)
+
+#post-hoc tests
+#set custom contrasts
+contrD1 <- list(
+  b4_b5 = c(0, 0, 0, 1, -1, 0, 0, 0),
+  b4_b8 = c(0, 0, 0, 1, 0, 0, 0, -1),
+  b5_b8 = c(0, 0, 0, 0, 1, 0, 0, -1)
+)
+contrD2 <- list(
+  b2_b3 = c(0, 1, -1, 0),
+  b2_b4 = c(0, 1, 0, -1),
+  b3_b4 = c(0, 0, 1, -1)
+)
+
+#main effect of tasksNum, no interaction
+postHoc <- emmeans(res.aov, ~ tasksNum, contr = contrD1, adjust = 'bonferroni')
+postHoc$contrasts %>% 
+  as.data.frame() %>% 
+  mutate(p_val = format.pval(p.value, digits = 3)) %>% 
+  add_significance()
+
+postHoc <- emmeans(res.aov, ~ tasksNum, contr = contrD2, adjust = 'bonferroni')
+postHoc$contrasts %>% 
+  as.data.frame() %>% 
+  mutate(p_val = format.pval(p.value, digits = 3)) %>% 
+  add_significance()
+
+rm(dataD, res.aov, contrD1, contrD2, postHoc)
 
 
 
@@ -91,12 +130,13 @@ plotScore(dataScore, save.as = 'pdf')
 
 #get data
 dataDelta <- data %>% 
-  select(participant, Group, Day, trialsNum, tasksNum, ballSpeed, wallOrient,
+  dplyr::select(participant, Group, Day, trialsNum, tasksNum, ballSpeed, wallOrient,
          pertChoice, alphaChoice, interceptDelta, expName) %>% 
   filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
   mutate(trialsN = trialsNum + (tasksNum-1)*50) %>% 
   group_by(expName, Group, Day, trialsN, tasksNum) %>% 
   summarise(iDelta_mn = mean(interceptDelta, na.rm=T),
+            iDelta_med = median(interceptDelta, na.rm=T),
             iDelta_sd = sd(interceptDelta, na.rm=T),
             n = n(),
             .groups = 'drop')
@@ -105,14 +145,73 @@ dataDelta <- data %>%
 #plots averaged across participants
 plotDelta(dataDelta, save.as = 'pdf')
 
-#stats
-# dataD1 <- data %>%
-#   filter(Day == 1 & tasksNum > 3) %>% 
-#   mutate(tasksNum = factor(tasksNum))
-# model <- aov(interceptDelta ~ Group * tasksNum, data = dataD1) #factor(Group) doesn't work, try as.factor() instead?
-# summary(model)
-# plot.tukey <- TukeyHSD(model, which = 'tasksNum')
-# plot(plot.tukey)
+
+###stats ----
+
+dataD1 <- data %>% 
+  filter(expName == 'bounceV3' & Day == 1 & 
+           ((tasksNum == 4 & trialsNum == 50) | 
+              (tasksNum == 5 & trialsNum %in% c(1, 50)))) %>% 
+  dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
+  mutate(time = case_when(tasksNum == 4 ~ 'nopert_last',
+                          tasksNum == 5 & trialsNum == 1 ~ 'pert_first',
+                          tasksNum == 5 & trialsNum == 50 ~ 'pert_last')) %>% 
+  convert_as_factor(Group, time, participant)
+
+dataD2 <- data %>% 
+  filter(expName == 'bounceV3' & Day == 2 & 
+           ((tasksNum == 2 & trialsNum == 50) | 
+              (tasksNum == 3 & trialsNum %in% c(1, 50)) | 
+              (tasksNum == 4 & trialsNum %in% c(1, 50)))) %>% 
+  dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
+  mutate(time = case_when(tasksNum == 2 ~ 'pert_last',
+                          tasksNum == 3 & trialsNum == 1 ~ 'switch_first',
+                          tasksNum == 3 & trialsNum == 50 ~ 'switch_last',
+                          tasksNum == 4 & trialsNum == 1 ~ 'nopert_first',
+                          tasksNum == 4 & trialsNum == 50 ~ 'nopert_last')) %>% 
+  convert_as_factor(Group, time, participant)
+
+dataD <- dataD2
+
+#normality assumption
+dataD %>%
+  group_by(Group, time) %>%
+  shapiro_test(interceptDelta)
+ggqqplot(dataD, 'interceptDelta') + facet_grid(Group ~ time)
+
+#homogeneity of variance assumption
+dataD %>%
+  group_by(time) %>%
+  levene_test(interceptDelta ~ Group) #assess homogeneity of the between factor
+
+#ANOVA
+res.aov <- aov_ez(data = dataD, dv = 'interceptDelta', id = 'participant',
+                  between = 'Group', within = 'time', type = 3)
+get_anova_table(res.aov)
+
+#post-hoc tests
+#set custom contrasts
+contrD2 <- list(
+  pertlast_switchfirst    = c(0, 0, 1, -1, 0),
+  switchfirst_switchlast  = c(0, 0, 0, 1, -1),
+  pertlast_nopertfirst    = c(-1, 0, 1, 0, 0),
+  nopertfirst_nopertlast  = c(1, -1, 0, 0, 0)
+)
+
+#main effect of time, no interaction
+postHoc <- emmeans(res.aov, pairwise ~ time, adjust = 'bonferroni') #pairwise to look at all possible combinations
+postHoc$contrasts %>%
+  as.data.frame() %>%
+  mutate(p_val = format.pval(p.value, digits = 3)) %>%
+  add_significance()
+
+postHoc <- emmeans(res.aov, ~ time, contr = contrD2, adjust = 'bonferroni')
+postHoc$contrasts %>%
+  as.data.frame() %>%
+  mutate(p_val = format.pval(p.value, digits = 3)) %>%
+  add_significance()
+
+rm(dataD1, dataD2, dataD, res.aov, contrD2, postHoc)
 
 
 
@@ -132,7 +231,7 @@ data <- getDeltaRatio(data)
 
 #get data
 dataDeltaRatio <- data %>% 
-  select(participant, Group, Day, trialsNum, tasksNum, ballSpeed, wallOrient,
+  dplyr::select(participant, Group, Day, trialsNum, tasksNum, ballSpeed, wallOrient,
          pertChoice, alphaChoice, deltaRatio, expName) %>% 
   mutate(trialsN = trialsNum + (tasksNum-1)*50) %>% 
   group_by(expName, Group, Day, trialsN, tasksNum) %>% 
@@ -163,6 +262,7 @@ plotTimingMidScreen(cursor_midscreen, save.as = 'pdf')
 cursor_in_intercept <- getCursorTimingWithinIntercept(datacursor)
 
 plotTimingWithinIntercept(cursor_in_intercept, save.as = 'pdf')
+plotTimingWithinInterceptHist(cursor_in_intercept, save.as = 'pdf')
 
 #very long to run, to improve!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -196,10 +296,29 @@ plotTimingWithinIntercept(cursor_in_intercept, save.as = 'pdf')
 
 
 
+##look at distance traveled as a function of time relative to connect time ----
+
+dataDistTravel <- getDistanceTraveled(datacursor)
+
+plotDistTraveled(dataDistTravel, save.as = 'svg')
+
+# ggplot(dataDistTravel, aes(x = timeReConnect, y = dist_traveled)) +
+#   geom_col() +
+#   scale_x_binned(n.breaks = 100) + 
+#   scale_x_continuous(breaks = seq(from = -1, to = 0.5, by = 0.25))
+
+
+
+##look at number of cursor movement as a function of time relative to connect time ----
+
+plotNmvtTime(dataDistTravel, save.as = 'pdf')
+  
+
+
 ##timings depending on OS and browser ----
 timings <- data %>% 
-  select(Browser, alphaChoice, pertChoice, tasksNum, ballSpeed, connectTime, bounceTime,
-         participant, Group, Day, OS, hitOrMiss) %>% 
+  dplyr::select(Browser, alphaChoice, pertChoice, tasksNum, ballSpeed, 
+                connectTime, bounceTime, participant, Group, Day, OS, hitOrMiss) %>% 
   # filter(Day == 1 & tasksNum > 2 & tasksNum < 5) %>%
   filter(Day == 1 & tasksNum > 4) %>%
   mutate(Browser = as.factor(Browser), OS = as.factor(OS), ballSpeed = as.factor(ballSpeed)) %>% 
@@ -253,7 +372,7 @@ ballEndPos_wide <- ballEndPos %>%
   mutate(perturb_size = abs(perturb - notperturb))
 
 prop_trials <- data %>% 
-  select(Group, Day, expName, pertChoice, alphaChoice, interceptDelta) %>% 
+  dplyr::select(Group, Day, expName, pertChoice, alphaChoice, interceptDelta) %>% 
   filter(abs(interceptDelta) < 0.5 & pertChoice != 0) %>% #remove trials in which participants did not move and start to move late
   count(expName, Day, Group, alphaChoice) %>% 
   group_by(expName, Day, Group) %>%
