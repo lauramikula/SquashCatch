@@ -1,4 +1,5 @@
 source('analyses/shared.R')
+source('analyses/cleaningData.R')
 source('analyses/makePlots.R')
 
 
@@ -143,7 +144,7 @@ dataDelta <- data %>%
 
 
 #plots averaged across participants
-plotDelta(dataDelta, save.as = 'pdf')
+plotDelta(dataDelta, save.as = 'pdf', WxL = c(15,6))
 
 
 ###stats ----
@@ -153,10 +154,12 @@ dataD1 <- data %>%
            ((tasksNum == 4 & trialsNum == 50) | 
               (tasksNum == 5 & trialsNum %in% c(1, 50)))) %>% 
   dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
+  filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
   mutate(time = case_when(tasksNum == 4 ~ 'nopert_last',
                           tasksNum == 5 & trialsNum == 1 ~ 'pert_first',
-                          tasksNum == 5 & trialsNum == 50 ~ 'pert_last')) %>% 
-  convert_as_factor(Group, time, participant)
+                          tasksNum == 5 & trialsNum == 50 ~ 'pert_last'),
+         trialsN = trialsNum + (tasksNum-1)*50) %>% 
+  convert_as_factor(Group, time, participant, trialsN)
 
 dataD2 <- data %>% 
   filter(expName == 'bounceV3' & Day == 2 & 
@@ -164,12 +167,14 @@ dataD2 <- data %>%
               (tasksNum == 3 & trialsNum %in% c(1, 50)) | 
               (tasksNum == 4 & trialsNum %in% c(1, 50)))) %>% 
   dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
+  filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
   mutate(time = case_when(tasksNum == 2 ~ 'pert_last',
                           tasksNum == 3 & trialsNum == 1 ~ 'switch_first',
                           tasksNum == 3 & trialsNum == 50 ~ 'switch_last',
                           tasksNum == 4 & trialsNum == 1 ~ 'nopert_first',
-                          tasksNum == 4 & trialsNum == 50 ~ 'nopert_last')) %>% 
-  convert_as_factor(Group, time, participant)
+                          tasksNum == 4 & trialsNum == 50 ~ 'nopert_last'),
+         trialsN = trialsNum + (tasksNum-1)*50) %>% 
+  convert_as_factor(Group, time, participant, trialsN)
 
 dataD <- dataD2
 
@@ -212,6 +217,11 @@ postHoc$contrasts %>%
   add_significance()
 
 rm(dataD1, dataD2, dataD, res.aov, contrD2, postHoc)
+
+
+###plot of the stats ----
+plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(15,5))
+plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(10,5))
 
 
 
