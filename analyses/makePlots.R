@@ -162,9 +162,9 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
 
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -195,7 +195,7 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
         
         theme_classic_article() + 
         #add lots of space under legend box to manually add stats
-        theme(legend.box.spacing = unit(c(0,0,130,0), 'pt')) +
+        theme(legend.box.spacing = unit(c(0,0,80,0), 'pt')) +
         scale_color_discrete(name = 'Group', labels = lbl) + 
         scale_y_continuous(breaks = seq(0, 100, 20), expand = c(0, 0)) + 
         labs(title = title, x = 'Blocks', y = 'Successful trials (%)') +
@@ -242,7 +242,8 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
     #get data for each version of the experiment
     dfdata <- df %>%
       filter(expName == expNames[i]) %>%
-      mutate(tasksNum = factor(tasksNum))
+      mutate(tasksNum = factor(tasksNum),
+             Gp.Pts = paste(Group, points)) #add column to specify different color shades
     
     #get the number of days
     d <- unique(df$Day)
@@ -262,53 +263,66 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
         .$n
       n <- sum(n.gp)
       
+      #get number of blocks in current task version
+      Nblock = max(as.numeric(dataD$tasksNum))
+      
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
       names(lbl) <- c('train_horiz', 'train_tilt')
       
-      #make plots
-      # p <- ggbarplot(dataD, x = 'tasksNum', y = 'percent', fill = 'points',
-      #                facet.by = 'Group', position = position_stack(),
-      #                panel.labs = list(Group = lbl),
-      #                legend.title = 'Points earned') +
-      #   scale_fill_viridis_d() +
-      #   scale_color_viridis_d()
-      # 
-      # p <- ggpar(p,
-      #            xlab = 'Blocks',
-      #            ylab = 'Proportion of points earned (%)',
-      #            title = title) +
-      #   theme_classic_article() +
-      #   scale_fill_grey()
-      # # theme(plot.margin = unit(c(0,2,0,2), 'lines'),
-      # #       text = element_text(size = 15))
+      #set colors for groups and points
+      GpPtsCol <- c('#FDD1CE', '#FAA49E', '#F8766D', #trained_horiz 0, 5 and 10 points
+                    '#99FCFF', '#00DEE6', '#00BFC4') #trained_tilt 0, 5 and 10 points
+      lbls <- rep(levels(dataD$points), time = 2)
       
-      p <- ggplot(dataD, aes(x = tasksNum, y = percent, fill = points)) +
-        geom_bar(position = 'fill', stat = 'identity') + 
-        facet_wrap(~ Group, labeller = labeller(Group = lbl)) + 
+      # #make plots
+      # p <- ggplot(dataD, aes(x = tasksNum, y = percent, fill = points)) +
+      #   geom_bar(position = 'fill', stat = 'identity') + 
+      #   facet_wrap(~ Group, labeller = labeller(Group = lbl)) + 
+      #   
+      #   theme_classic_article() + 
+      #   #add margin to the bottom of plot title
+      #   theme(plot.title = element_text(margin = margin(b = 20, unit = 'pt'))) +
+      #   scale_fill_grey() + 
+      #   scale_y_continuous(breaks = seq(0, 1, 0.2), labels = seq(0, 100, 20),
+      #                      #expand y axis only for the upper limit
+      #                      expand = expansion(mult = c(0,0.03))) +
+      #   labs(title = title, x = 'Blocks', y = 'Proportion of points earned (%)',
+      #        fill = 'Points earned')
+      
+      #make plots (one layer for each group)
+      widthCol <- 0.4
+      dodge <- 0.22
+      p <- ggplot(dataD %>% filter(Group == 'train_horiz'), 
+                  aes(x = as.numeric(tasksNum) - dodge, y = percent, fill = Gp.Pts)) +
+        geom_bar(position = 'fill', stat = 'identity', width = widthCol) + 
+        geom_bar(data = dataD %>% filter(Group == 'train_tilt'),
+                 aes(x = as.numeric(tasksNum) + dodge, y = percent, fill = Gp.Pts),
+                 position = 'fill', stat = 'identity', width = widthCol) +
         
         theme_classic_article() + 
         #add margin to the bottom of plot title
         theme(plot.title = element_text(margin = margin(b = 20, unit = 'pt'))) +
-        scale_fill_grey() + 
+        #specify color shades
+        scale_fill_manual(name = 'Points earned', labels = lbls, values = GpPtsCol) +
         scale_y_continuous(breaks = seq(0, 1, 0.2), labels = seq(0, 100, 20),
-                           #expand y axis only for the upper limit
-                           expand = expansion(mult = c(0,0.03))) +
-        labs(title = title, x = 'Blocks', y = 'Proportion of points earned (%)',
-             fill = 'Points earned')
+                           expand = expansion(mult = 0)) +
+        scale_x_continuous(breaks = seq(1, Nblock, 1)) + 
+        guides(fill = guide_legend(nrow = 1, byrow = TRUE)) +
+        labs(title = '', x = 'Blocks', y = 'Proportion of points earned (%)')
       
       plist[[j]] = p
       
     }
     
     #save plots as svg or pdf
-    plot <- ggarrange(plotlist = plist, ncol = 2, nrow = 1, widths = c(2,1.1),
+    plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(2,1.2),
                       labels = c('A','B'), font.label = list(size = 18),
                       common.legend = T, legend = 'bottom')
     
@@ -378,9 +392,9 @@ plotDelta <- function(df, whichY = 'mean', save.as = 'svg', WxL = c(15,7)) {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -402,11 +416,13 @@ plotDelta <- function(df, whichY = 'mean', save.as = 'svg', WxL = c(15,7)) {
                  fill = 'grey90') + 
         annotate('text', x = pertPlt$xstart[j], y = pertPlt$yend[j] - 0.012,
                  label = 'Perturbation size', color = 'grey50', hjust = -0.05) + 
+        annotate('text', x = 0, y = pdlL[2] + 0.015, label = 'Paddle border', 
+                 color = 'black', hjust = +0.1) + 
         geom_hline(yintercept = pdlL, linetype = 'dotted') +
         geom_hline(yintercept = 0) +
         geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) +
-        geom_point(alpha = 0.3, size = 2.6) +
-        geom_smooth(se = T, alpha = 0.35, span = 0.9, size = 0.8) +
+        geom_point(alpha = 0.25, size = 2.6) +
+        geom_smooth(se = F, alpha = 0.35, span = 0.9, size = 0.8) +
         
         theme_classic_article() +  
         scale_color_discrete(name = 'Group', labels = lbl) +
@@ -472,7 +488,7 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
     split(., .$Day)
   
   #set title and labels
-  title <- lapply(n.gp, function(x) {sprintf('Day %s', unique(x$Day))})
+  title <- lapply(n.gp, function(x) {sprintf('Session %s', unique(x$Day))})
   lbl <- lapply(n.gp, function(x) {sprintf('%s\n(N = %s)', Gps, x$n)})
   xlbl <- list(c('No perturbation\nLast trial',
                  'Trained perturbation\nTrial 1',
@@ -576,9 +592,9 @@ plotDeltaShift_blocks <- function(df, save.as = 'svg', WxL = c(14,10)) {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -679,9 +695,9 @@ plotDeltaShift_trials <- function(df, save.as = 'svg', WxL = c(15,10)) {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s (N = %s)', d[j], n)
+        title <- sprintf('Session %s (N = %s)', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s (N = %s)', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s (N = %s)', expNames[i], d[j], n)
       }
       
       #add perturbation schedule to title
@@ -796,9 +812,9 @@ plotDeltaRatio <- function(df, save.as = 'svg') {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -881,9 +897,9 @@ plotTimingMidScreen <- function(df, save.as = 'svg') {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -968,9 +984,9 @@ plotTimingWithinIntercept <- function(df, save.as = 'svg') {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -1055,9 +1071,9 @@ plotTimingWithinInterceptHist <- function(df, save.as = 'svg') {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -1132,9 +1148,9 @@ plotDistTraveled <- function(df, save.as = 'svg') {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -1237,9 +1253,9 @@ plotNmvtTime <- function(df, save.as = 'svg') {
       
       #set title and labels
       if (save.as == 'svg') {
-        title <- sprintf('Day %s\nN = %s', d[j], n)
+        title <- sprintf('Session %s\nN = %s', d[j], n)
       } else {
-        title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
       }
       
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
@@ -1418,9 +1434,9 @@ plotPerturbations <- function (dfpert) {
 #       
 #       #set title and labels
 #       if (save.as == 'svg') {
-#         title <- sprintf('Day %s\nN = %s', d[j], n)
+#         title <- sprintf('Session %s\nN = %s', d[j], n)
 #       } else {
-#         title <- sprintf('%s, Day %s\nN = %s', expNames[i], d[j], n)
+#         title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
 #       }
 #       
 #       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)

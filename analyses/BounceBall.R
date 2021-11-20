@@ -63,12 +63,13 @@ dataSucc <- data %>%
 
 #plots averaged across participants
 plotSuccessRate(dataSucc, save.as = 'pdf')
+plotSuccessRate(dataSucc, save.as = 'svg', WxL = c(10,5))
 
 
 ###stats ----
 
 dataD <- dataSucc %>%
-  filter(expName == 'bounceV3' & Day == 2) %>%
+  filter(expName == 'bounceV3' & Day == 1) %>%
   convert_as_factor(tasksNum, Group, participant)
 
 #normality assumption
@@ -84,8 +85,11 @@ dataD %>%
 
 #ANOVA
 res.aov <- aov_ez(data = dataD, dv = 'hitPercent', id = 'participant',
-                  between = 'Group', within = 'tasksNum')
+                  between = 'Group', within = 'tasksNum',
+                  anova_table = list(es = 'pes')) #get partial eta-squared
 get_anova_table(res.aov)
+#qqplot
+ggqqplot(as.numeric(residuals(res.aov$lm)))
 
 #post-hoc tests
 #set custom contrasts
@@ -122,6 +126,7 @@ rm(dataD, res.aov, contrD1, contrD2, postHoc)
 dataScore <- getScore(data)
 
 plotScore(dataScore, save.as = 'pdf')
+plotScore(dataScore, save.as = 'svg', WxL = c(10,3.5))
 
 
 
@@ -145,6 +150,7 @@ dataDelta <- data %>%
 
 #plots averaged across participants
 plotDelta(dataDelta, save.as = 'pdf', WxL = c(15,6))
+plotDelta(dataDelta, save.as = 'svg', WxL = c(12,6))
 
 
 ###stats ----
@@ -176,7 +182,7 @@ dataD2 <- data %>%
          trialsN = trialsNum + (tasksNum-1)*50) %>% 
   convert_as_factor(Group, time, participant, trialsN)
 
-dataD <- dataD2
+dataD <- dataD1
 
 #normality assumption
 dataD %>%
@@ -191,8 +197,22 @@ dataD %>%
 
 #ANOVA
 res.aov <- aov_ez(data = dataD, dv = 'interceptDelta', id = 'participant',
-                  between = 'Group', within = 'time', type = 3)
+                  between = 'Group', within = 'time', type = 3,
+                  anova_table = list(es = 'pes')) #get partial eta-squared
 get_anova_table(res.aov)
+#qqplot
+ggqqplot(as.numeric(residuals(res.aov$lm)))
+
+#GLMM because residuals do not seem normally distributed
+dataD$intDelta_trans <- dataD$interceptDelta + 1
+glmm <- lmer(interceptDelta ~ Group * time + (1|participant), data = dataD)
+ggqqplot(residuals(glmm))
+anova(glmm)
+# print(glmm, corr = FALSE)
+# glmm2 <- glmer(intDelta_trans ~ Group * time + (1|participant), data = dataD,
+#                family = gaussian(link = 'log'))
+# ggqqplot(residuals(glmm2))
+# anova(glmm2)
 
 #post-hoc tests
 #set custom contrasts
