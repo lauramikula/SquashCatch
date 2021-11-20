@@ -117,7 +117,7 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
 
     #get data for each version of the experiment
     dfdata <- df %>%
-      filter(expName == expNames[i]) %>%
+      filter(expName == expNames[i]) %>% 
       mutate(tasksNum = factor(tasksNum))
     
     # #get last block# for each version of the experiment
@@ -135,6 +135,23 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
       #get data for each day
       dataD <- dfdata %>%
         filter(Day == d[j])
+      
+      #to plot the different conditions
+      #get maximum number of blocks day 1
+      Nblocks <- max(as.numeric(dataD$tasksNum))
+      #colors
+      Cndcol <- c('#e6e7e8', '#a7a9ac', '#414042') #no_pert, trained_pert and untrained_pert
+      #x coordinates
+      sp <- 0.4
+      if (j == 1) {
+        CndXlim <- data.frame(nopert    = c(1-sp, 4.5),
+                              trained   = c(4.5, Nblocks+sp),
+                              untrained = c(NA, NA))
+      } else {
+        CndXlim <- data.frame(nopert    = c(3.5, 4+sp),
+                              trained   = c(1-sp, 2.5),
+                              untrained = c(2.5, 3.5))
+      }
       
       #compute summary for that day
       summ_dataD <- dataD %>% 
@@ -172,23 +189,43 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
       #make plots
       p <- ggplot() + 
         #individual success rates
-        geom_jitter(data = dataD, aes(x = tasksNum, y = hitPercent, 
-                                      group = Group, color = Group), 
+        geom_jitter(data = dataD, aes(x = tasksNum, y = hitPercent,
+                                      group = Group, color = Group),
                     alpha = 0.25, size = 2,
                     position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.9)) +
-        #success rates averaged across groups
-        geom_line(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent, 
-                                         group = Group, color = Group),
-                  position = position_dodge(0.4), size = 0.6) +
-        geom_point(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent, 
-                                         group = Group, color = Group),
+        #rectangles w/ conditions at the bottom
+        geom_blank() + #otherwise continuous mess up w/ discrete x scale
+        annotate('rect',
+                 xmin = CndXlim$nopert[1], xmax = CndXlim$nopert[2],
+                 ymin = 1, ymax = 12,
+                 fill = Cndcol[1]) +
+        annotate('text', x = CndXlim$nopert[1]+0.04, y = 7, hjust = 0, size = 2.5,
+                 label = 'No\nperturbation', color = 'black', lineheight = 0.75) +
+        annotate('rect',
+                 xmin = CndXlim$trained[1], xmax = CndXlim$trained[2],
+                 ymin = 1, ymax = 12,
+                 fill = Cndcol[2]) +
+        annotate('text', x = CndXlim$trained[1]+0.04, y = 7, hjust = 0, size = 2.5,
+                 label = 'Trained\nperturbation', color = 'black', lineheight = 0.75) +
+        annotate('rect',
+                 xmin = CndXlim$untrained[1], xmax = CndXlim$untrained[2],
+                 ymin = 1, ymax = 12,
+                 fill = Cndcol[3]) +
+        annotate('text', x = CndXlim$untrained[1]+0.04, y = 7, hjust = 0, size = 2.5,
+                 label = 'Untrained\nperturbation', color = 'white', lineheight = 0.75) +
+      #success rates averaged across groups
+      geom_line(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                       group = Group, color = Group),
+                position = position_dodge(0.4), size = 0.6) +
+        geom_point(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                          group = Group, color = Group),
                    position = position_dodge(0.4), size = 2) +
         #error bar with mean +/- SD
-        geom_errorbar(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent, 
+        geom_errorbar(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
                                              ymin = mn_hitPercent - sd_hitPercent,
                                              ymax = mn_hitPercent + sd_hitPercent,
                                              group = Group, color = Group),
-                      position = position_dodge(0.4), size = 0.6, width = 0.2) + 
+                      position = position_dodge(0.4), size = 0.6, width = 0.2) +
         geom_segment(data = vline[[j]],
                      mapping = aes(x = x, y = ymin, xend = x, yend = ymax),
                      color = 'black', linetype = 'dashed', size = 0.4) +
