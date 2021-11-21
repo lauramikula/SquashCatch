@@ -232,7 +232,7 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
         
         theme_classic_article() + 
         #add lots of space under legend box to manually add stats
-        theme(legend.box.spacing = unit(c(0,0,80,0), 'pt')) +
+        theme(legend.box.spacing = unit(c(0,0,60,0), 'pt')) +
         scale_color_discrete(name = 'Group', labels = lbl) + 
         scale_y_continuous(breaks = seq(0, 100, 20), expand = c(0, 0)) + 
         labs(title = title, x = 'Blocks', y = 'Successful trials (%)') +
@@ -279,8 +279,12 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
     #get data for each version of the experiment
     dfdata <- df %>%
       filter(expName == expNames[i]) %>%
-      mutate(tasksNum = factor(tasksNum),
-             Gp.Pts = paste(Group, points)) #add column to specify different color shades
+      mutate(tasksNum = factor(tasksNum)) %>% 
+      arrange(Group, points) %>% 
+      mutate(Gp.Pts = paste(Group, points)) %>% #add column to specify different color shades
+      mutate(Gp.Pts = factor(Gp.Pts,
+                             levels = c('train_horiz 0', 'train_horiz 5', 'train_horiz 10',
+                                        'train_tilt 0' , 'train_tilt 5' , 'train_tilt 10')))
     
     #get the number of days
     d <- unique(df$Day)
@@ -290,9 +294,6 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
       #get data for each day
       dataD <- dfdata %>%
         filter(Day == d[j])
-      
-      # #keep only last practice block for day 1
-      # if(j == 1) {dataD <- dataD %>% filter(as.numeric(tasksNum) > 3)}
       
       #get number of participants for each task version (n) and each group (n.gp)
       n.gp <- demoG$N %>%
@@ -313,12 +314,19 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
       names(lbl) <- c('train_horiz', 'train_tilt')
       
-      #set colors for groups and points
+      #set colors for groups and points, and labels
       GpPtsCol <- c('#FDD1CE', '#FAA49E', '#F8766D', #trained_horiz 0, 5 and 10 points
                     '#99FCFF', '#00DEE6', '#00BFC4') #trained_tilt 0, 5 and 10 points
       lbls <- rep(levels(dataD$points), time = 2)
       
-      # #make plots
+      #compute x positions for the bar plot (cannot use dodge when bars are stacked)
+      widthCol <- 0.4
+      dodge <- 0.22
+      dataD %<>% 
+        mutate(xPos = case_when(Group == 'train_horiz' ~ as.numeric(tasksNum) - 0.22,
+                                Group == 'train_tilt' ~ as.numeric(tasksNum) + 0.22))
+      
+      # #make plots ****[OLD PLOT W/ FACETS]****
       # p <- ggplot(dataD, aes(x = tasksNum, y = percent, fill = points)) +
       #   geom_bar(position = 'fill', stat = 'identity') + 
       #   facet_wrap(~ Group, labeller = labeller(Group = lbl)) + 
@@ -333,15 +341,9 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
       #   labs(title = title, x = 'Blocks', y = 'Proportion of points earned (%)',
       #        fill = 'Points earned')
       
-      #make plots (one layer for each group)
-      widthCol <- 0.4
-      dodge <- 0.22
-      p <- ggplot(dataD %>% filter(Group == 'train_horiz'), 
-                  aes(x = as.numeric(tasksNum) - dodge, y = percent, fill = Gp.Pts)) +
+      #make plots
+      p <- ggplot(dataD, aes(x = xPos, y = percent, fill = Gp.Pts)) +
         geom_bar(position = 'fill', stat = 'identity', width = widthCol) + 
-        geom_bar(data = dataD %>% filter(Group == 'train_tilt'),
-                 aes(x = as.numeric(tasksNum) + dodge, y = percent, fill = Gp.Pts),
-                 position = 'fill', stat = 'identity', width = widthCol) +
         
         theme_classic_article() + 
         #add margin to the bottom of plot title
@@ -352,7 +354,7 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
                            expand = expansion(mult = 0)) +
         scale_x_continuous(breaks = seq(1, Nblock, 1)) + 
         guides(fill = guide_legend(nrow = 1, byrow = TRUE)) +
-        labs(title = '', x = 'Blocks', y = 'Proportion of points earned (%)')
+        labs(title = title, x = 'Blocks', y = 'Proportion of points earned (%)')
       
       plist[[j]] = p
       

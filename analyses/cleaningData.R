@@ -41,7 +41,8 @@ getSurvey <- function () {
   #recode the group column
   survey %<>% 
     mutate(group = recode(group,
-                          `1` = 'train_horiz', `2` = 'train_tilt'))
+                          `1` = 'train_horiz', `2` = 'train_tilt')) %>% 
+    mutate(group = factor(group, levels = c('train_horiz', 'train_tilt')))
   
   #set labels for the survey data frame
   survey %<>% 
@@ -81,7 +82,8 @@ getPavlovia <- function () {
     mutate(interceptDelta = ifelse(alphaChoice > 0, interceptDelta*-1, interceptDelta)) %>% 
     #recode variables
     mutate(HitMiss = recode(hitOrMiss, 'miss' = 0, 'hit' = 1), 
-           Group = recode(Group, `1` = 'train_horiz', `2` = 'train_tilt')) 
+           Group = recode(Group, `1` = 'train_horiz', `2` = 'train_tilt')) %>% 
+    mutate(Group = factor(Group, levels = c('train_horiz', 'train_tilt')))
   
   return(data)
   
@@ -99,8 +101,6 @@ getCompleteData <- function (dfdata, dfsurvey) {
   to_rmv <- setdiff(dfdatasplit[[2]]$participant, dfdatasplit[[1]]$participant)
   dfdata %<>% 
     filter(!participant %in% to_rmv)
-  # dfsurvey %<>% 
-  #   filter(!id %in% to_rmv) #to remove, will try to match all IDs in dfsurvey at the end
   
   #all blocks done ----
   #count the number of blocks for each participant and session
