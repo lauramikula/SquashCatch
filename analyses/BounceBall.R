@@ -86,7 +86,8 @@ dataD %>%
 #ANOVA
 res.aov <- aov_ez(data = dataD, dv = 'hitPercent', id = 'participant',
                   between = 'Group', within = 'tasksNum',
-                  anova_table = list(es = 'pes')) #get partial eta-squared
+                  anova_table = list(es = 'pes'), #get partial eta-squared
+                  include_aov = TRUE) #get uncorrected degrees of freedom
 get_anova_table(res.aov)
 #qqplot
 ggqqplot(as.numeric(residuals(res.aov$lm)))
@@ -110,12 +111,18 @@ postHoc$contrasts %>%
   as.data.frame() %>% 
   mutate(p_val = format.pval(p.value, digits = 3)) %>% 
   add_significance()
+#get effect sizes
+eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:tasksNum`), 
+         edf = df.residual(res.aov$aov$`participant:tasksNum`))
 
 postHoc <- emmeans(res.aov, ~ tasksNum, contr = contrD2, adjust = 'bonferroni')
 postHoc$contrasts %>% 
   as.data.frame() %>% 
   mutate(p_val = format.pval(p.value, digits = 3)) %>% 
   add_significance()
+#get effect sizes
+eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:tasksNum`), 
+         edf = df.residual(res.aov$aov$`participant:tasksNum`))
 
 rm(dataD, res.aov, contrD1, contrD2, postHoc)
 
@@ -161,28 +168,30 @@ dataD1 <- data %>%
               (tasksNum == 5 & trialsNum %in% c(1, 50)))) %>% 
   dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
   filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
-  mutate(time = case_when(tasksNum == 4 ~ 'nopert_last',
-                          tasksNum == 5 & trialsNum == 1 ~ 'pert_first',
-                          tasksNum == 5 & trialsNum == 50 ~ 'pert_last'),
+  mutate(time = case_when(tasksNum == 4 ~ 'Tr200',
+                          tasksNum == 5 & trialsNum == 1 ~ 'Tr201',
+                          tasksNum == 5 & trialsNum == 50 ~ 'Tr250'),
          trialsN = trialsNum + (tasksNum-1)*50) %>% 
   convert_as_factor(Group, time, participant, trialsN)
 
 dataD2 <- data %>% 
   filter(expName == 'bounceV3' & Day == 2 & 
-           ((tasksNum == 2 & trialsNum == 50) | 
+           ((tasksNum == 1 & trialsNum == 1) |
+              (tasksNum == 2 & trialsNum == 50) | 
               (tasksNum == 3 & trialsNum %in% c(1, 50)) | 
               (tasksNum == 4 & trialsNum %in% c(1, 50)))) %>% 
   dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
   filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
-  mutate(time = case_when(tasksNum == 2 ~ 'pert_last',
-                          tasksNum == 3 & trialsNum == 1 ~ 'switch_first',
-                          tasksNum == 3 & trialsNum == 50 ~ 'switch_last',
-                          tasksNum == 4 & trialsNum == 1 ~ 'nopert_first',
-                          tasksNum == 4 & trialsNum == 50 ~ 'nopert_last'),
+  mutate(time = case_when(tasksNum == 1 ~ 'Tr1',
+                          tasksNum == 2 ~ 'Tr100',
+                          tasksNum == 3 & trialsNum == 1 ~ 'Tr101',
+                          tasksNum == 3 & trialsNum == 50 ~ 'Tr150',
+                          tasksNum == 4 & trialsNum == 1 ~ 'Tr151',
+                          tasksNum == 4 & trialsNum == 50 ~ 'Tr200'),
          trialsN = trialsNum + (tasksNum-1)*50) %>% 
   convert_as_factor(Group, time, participant, trialsN)
 
-dataD <- dataD1
+dataD <- dataD2
 
 #normality assumption
 dataD %>%
@@ -198,7 +207,8 @@ dataD %>%
 #ANOVA
 res.aov <- aov_ez(data = dataD, dv = 'interceptDelta', id = 'participant',
                   between = 'Group', within = 'time', type = 3,
-                  anova_table = list(es = 'pes')) #get partial eta-squared
+                  anova_table = list(es = 'pes'), #get partial eta-squared
+                  include_aov = TRUE) #get uncorrected degrees of freedom
 get_anova_table(res.aov)
 #qqplot
 ggqqplot(as.numeric(residuals(res.aov$lm)))
@@ -216,12 +226,13 @@ anova(glmm)
 
 #post-hoc tests
 #set custom contrasts
-contrD2 <- list(
-  pertlast_switchfirst    = c(0, 0, 1, -1, 0),
-  switchfirst_switchlast  = c(0, 0, 0, 1, -1),
-  pertlast_nopertfirst    = c(-1, 0, 1, 0, 0),
-  nopertfirst_nopertlast  = c(1, -1, 0, 0, 0)
-)
+lvls = levels(dataD2$time)
+contrD2 <- list()
+contrD2[[paste(lvls[1], lvls[2], sep = '-')]] = c(1, -1, 0, 0, 0, 0)
+contrD2[[paste(lvls[2], lvls[3], sep = '-')]] = c(0, 1, -1, 0, 0, 0)
+contrD2[[paste(lvls[3], lvls[4], sep = '-')]] = c(0, 0, 1, -1, 0, 0)
+contrD2[[paste(lvls[2], lvls[5], sep = '-')]] = c(0, 1, 0, 0, -1, 0)
+contrD2[[paste(lvls[5], lvls[6], sep = '-')]] = c(0, 0, 0, 0, 1, -1)
 
 #main effect of time, no interaction
 postHoc <- emmeans(res.aov, pairwise ~ time, adjust = 'bonferroni') #pairwise to look at all possible combinations
@@ -229,18 +240,50 @@ postHoc$contrasts %>%
   as.data.frame() %>%
   mutate(p_val = format.pval(p.value, digits = 3)) %>%
   add_significance()
+#get effect sizes
+eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:time`), 
+         edf = df.residual(res.aov$aov$`participant:time`))
 
 postHoc <- emmeans(res.aov, ~ time, contr = contrD2, adjust = 'bonferroni')
 postHoc$contrasts %>%
   as.data.frame() %>%
   mutate(p_val = format.pval(p.value, digits = 3)) %>%
   add_significance()
+#get effect sizes
+eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:time`), 
+         edf = df.residual(res.aov$aov$`participant:time`))
 
-rm(dataD1, dataD2, dataD, res.aov, contrD2, postHoc)
+rm(dataD1, dataD2, dataD, res.aov, contrD2, postHoc, lvls)
+
+
+#t-test only taking participants from session 2 (trial 201 session 1 vs trial 1 session 2)
+#participants to keep
+dataD1 <- data %>% 
+  filter(expName == 'bounceV3' & Day == 1 & tasksNum == 5 & trialsNum == 1) %>% 
+  dplyr::select(expName, participant, Group, Day, interceptDelta) %>% 
+  filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move
+  convert_as_factor(Group)
+dataD2 <- data %>% 
+  filter(expName == 'bounceV3' & Day == 2 & tasksNum == 1 & trialsNum == 1) %>% 
+  dplyr::select(expName, participant, Group, Day, interceptDelta) %>% 
+  filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move
+  convert_as_factor(Group)
+
+datattest <- inner_join(dataD1, dataD2, by = 'participant')
+datattest$diff <- datattest$interceptDelta.x - datattest$interceptDelta.y
+
+#normality test on the difference
+shapiro_test(datattest$diff)
+
+#compute t-test
+res <- t.test(datattest$interceptDelta.x, datattest$interceptDelta.y, paired = TRUE)
+res
+
+rm(dataD1, dataD2, datattest, res)
 
 
 ###plot of the stats ----
-plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(15,5))
+plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(12,5)) #same width as interceptDelta plot
 plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(10,5))
 
 

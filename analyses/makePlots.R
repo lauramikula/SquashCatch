@@ -449,26 +449,30 @@ plotDelta <- function(df, whichY = 'mean', save.as = 'svg', WxL = c(15,7)) {
       p <- ggplot(dataD, aes(x = trialsN, y = !!Yplot, 
                              color = Group, fill = Group, 
                              group = interaction(Group, tasksNum))) + #group = interaction to dissociate between blocks and groups
+        #perturbation size
         annotate('rect',
                  xmin = pertPlt$xstart[j], xmax = pertPlt$xend[j],
                  ymin = pertPlt$ystart[j], ymax = pertPlt$yend[j],
                  fill = 'grey90') + 
         annotate('text', x = pertPlt$xstart[j], y = pertPlt$yend[j] - 0.012,
                  label = 'Perturbation size', color = 'grey50', hjust = -0.05) + 
+        #annotate paddle border
         annotate('text', x = 0, y = pdlL[2] + 0.015, label = 'Paddle border', 
                  color = 'black', hjust = +0.1) + 
         geom_hline(yintercept = pdlL, linetype = 'dotted') +
         geom_hline(yintercept = 0) +
-        geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) +
+        geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) + 
+        #data
         geom_point(alpha = 0.25, size = 2.6) +
-        geom_smooth(se = F, alpha = 0.35, span = 0.9, size = 0.8) +
+        geom_smooth(se = F, alpha = 0.35, span = 0.9, size = 0.9) +
         
         theme_classic_article() +  
         scale_color_discrete(name = 'Group', labels = lbl) +
         scale_fill_discrete(name = 'Group', labels = lbl) +
-        scale_x_continuous(breaks = seq(0, 500, 50)) +
-        labs(title = title, x = 'Trials', y = 'Distance between paddle and ball (a.u.)') +
-        ylim(-0.26, 0.15)
+        scale_x_continuous(breaks = seq(0, 500, 50)) + 
+        scale_y_continuous(limits = c(pertPlt$ystart[j], max(dfdata$iDelta_mn))) + 
+        labs(title = title, x = 'Trials', y = 'Distance between paddle and ball (a.u.)')
+        # ylim(-0.26, 0.15)
       
       plist[[j]] = p
       
@@ -499,7 +503,7 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   
   #trialsN to keep for each day
   kp_trialsN <- list(c(200, 201, 250), #day1
-                     c(100, 101, 150, 151, 200)) #day2
+                     c(1, 100, 101, 150, 151, 200)) #day2
   
   dfdata <- df %>% 
     dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
@@ -517,7 +521,7 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   
   #to plot the size of the perturbation
   pertPltX <- list(c(1.5, +Inf),
-                   c(-Inf, 3.5))
+                   c(-Inf, 4.5))
   pertPltY <- data.frame(ystart = max(perturb[[whichVersion]]$perturb_size)*-1,
                         yend = min(perturb[[whichVersion]]$perturb_size)*-1)
   
@@ -532,7 +536,8 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   xlbl <- list(c('No perturbation\nLast trial',
                  'Trained perturbation\nTrial 1',
                  'Trained perturbation\nTrial 50'),
-               c('Trained perturbation\nLast trial',
+               c('Trained perturbation\nFirst trial',
+                 'Trained perturbation\nLast trial',
                  'Untrained perturbation\nTrial 1',
                  'Untrained perturbation\nTrial 50',
                  'No perturbation\nTrial 1',
@@ -567,11 +572,11 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
       
       theme_classic_article() + 
       theme(legend.position = 'none',
-            plot.margin = unit(c(100,15,0,15), 'pt')) + #increase top margin to manually add stats
+            plot.title = element_text(margin = margin(b = 70, unit = 'pt'))) + #increase margin below title to manually add stats
       # scale_color_discrete(name = 'Group', labels = lgd) + 
       scale_x_discrete(labels = paste0('Trial\n', x$trialsN)) + 
       scale_y_continuous(limits = c(-0.45, 0.3), breaks = seq(-0.4, 0.2, 0.2)) + 
-      labs(title = NULL,
+      labs(title = ttl,
            x = NULL, y = 'Distance between paddle and ball (a.u.)')
   }
   
@@ -581,7 +586,7 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   #save plots as svg
   # plot <- ggarrange(plist[[1]], NULL, plist[[2]], ncol = 3, widths = c(0.7,0.6,1),
   #                   labels = c('C','','D'), font.label = list(size = 18))
-  plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(0.7,1),
+  plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(0.6,1),
                     labels = c('C','D'), font.label = list(size = 18))
   
   #filename to save figure
