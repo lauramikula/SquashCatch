@@ -4,6 +4,16 @@ source('analyses/makePlots.R')
 
 
 
+####
+# 
+# Main analysis script for the Adaptation to Online Pong Game
+# 
+# Data can be downloaded here: https://osf.io/54gm2/
+# After downloading, put the data files in the empty "data" folder of the project
+# 
+####
+
+
 #load data files ----
 
 survey <- getSurvey()
@@ -256,6 +266,7 @@ eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:time`),
 rm(dataD1, dataD2, dataD, res.aov, contrD2, postHoc, lvls)
 
 
+###savings between sessions 1 and 2 ----
 #t-test only taking participants from session 2 (trial 201 session 1 vs trial 1 session 2)
 #participants to keep
 dataD1 <- data %>% 
@@ -278,6 +289,34 @@ shapiro_test(datattest$diff)
 #compute t-test
 res <- t.test(datattest$interceptDelta.x, datattest$interceptDelta.y, paired = TRUE)
 res
+
+#do a mixed 2-way ANOVA
+datattest <- data %>% 
+  filter((expName == 'bounceV3' & Day == 1 & tasksNum == 5 & trialsNum == 1) |
+           expName == 'bounceV3' & Day == 2 & tasksNum == 1 & trialsNum == 1) %>% 
+  dplyr::select(expName, participant, Group, Day, interceptDelta) %>% 
+  filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move
+  convert_as_factor(Group)
+
+#normality assumption
+datattest %>%
+  group_by(Group, Day) %>%
+  shapiro_test(interceptDelta)
+ggqqplot(datattest, 'interceptDelta') + facet_grid(Group ~ Day)
+
+#homogeneity of variance assumption
+datattest %>%
+  group_by(Day) %>%
+  levene_test(interceptDelta ~ Group) #assess homogeneity of the between factor
+
+#ANOVA
+res.aov <- aov_ez(data = datattest, dv = 'interceptDelta', id = 'participant',
+                  between = 'Group', within = 'Day', type = 3,
+                  anova_table = list(es = 'pes'), #get partial eta-squared
+                  include_aov = TRUE) #get uncorrected degrees of freedom
+get_anova_table(res.aov)
+#qqplot
+ggqqplot(as.numeric(residuals(res.aov$lm)))
 
 rm(dataD1, dataD2, datattest, res)
 
