@@ -3,13 +3,13 @@ source('analyses/cleaningData.R')
 source('analyses/makePlots.R')
 
 
-
 ####
 # 
 # Main analysis script for the Adaptation to Online Pong Game
 # 
 # Data can be downloaded here: https://osf.io/54gm2/
-# After downloading, put the data files in the empty "data" folder of the project
+# After downloading data files (.csv), put them in an empty "data" folder inside the project
+# (path is "./data")
 # 
 ####
 

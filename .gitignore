@@ -23,7 +23,6 @@ GatherData.R
 syncData.R
 
 #skip these folders
+data/
+analyses/local
 docs/
-
-#skip .csv files in data folder
-data/*.csv
