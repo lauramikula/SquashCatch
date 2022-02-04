@@ -1,8 +1,3 @@
-source('analyses/shared.R')
-source('analyses/cleaningData.R')
-source('analyses/makePlots.R')
-
-
 ####
 # 
 # Main analysis script for the Adaptation to Online Pong Game
@@ -12,6 +7,12 @@ source('analyses/makePlots.R')
 # (path is "./data")
 # 
 ####
+
+
+source('analyses/shared.R')
+source('analyses/cleaningData.R')
+source('analyses/makePlots.R')
+
 
 
 #load data files ----
@@ -359,6 +360,19 @@ plotDeltaRatio(dataDeltaRatio, save.as = 'pdf')
 
 
 #exploratory analysis ----
+
+##get bounce and connect timings ----
+ballTimings <- data %>% 
+  filter(expName == 'bounceV3' & ballSpeed == 0.04) %>% 
+  mutate(pert = if_else(pertChoice == 0, 'no_pert', 'pert')) %>% 
+  group_by(pert, alphaChoice) %>% 
+  summarise(bounceT = median(bounceTime, na.rm = T),
+            connectT = median(connectTime, na.rm = T),
+            .groups = 'drop') %>% 
+  mutate(t_down = connectT - bounceT,
+         diff = bounceT - t_down)
+
+
 
 ##look at timing when crossing mid-screen ----
 cursor_midscreen <- getCursorTimingMidScreen(datacursor)

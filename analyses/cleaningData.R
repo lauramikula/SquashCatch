@@ -204,6 +204,7 @@ removeOutlBounceTime_participant <- function (dfdata, dfsurvey) {
                         ymin = overall_med - dT, ymax = overall_med + dT),
                     color = 'blue', size = 0.4, shape = 0) +
     theme_classic() +
+    scale_y_continuous(breaks = seq(0, 3, 0.25)) + 
     labs(y = 'Median bounce time (s)', x = 'Ball speed')
   #save plot
   fname = './docs/OutliersBounceTime.svg'
