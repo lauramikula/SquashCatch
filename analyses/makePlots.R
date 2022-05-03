@@ -263,6 +263,147 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
 }
 
 
+VSS_plotSuccessRate <- function(df, WxL = c(12,7), expeV) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #set custom colors
+  gpsCol <- c('darkorchid3', 'darkorange1')
+  
+  #to plot lines representing changes in conditions (different depending on the day)
+  vline <- list(data.frame(x = c(4.5),
+                           ymin = rep(0, times = 1, each = 1),
+                           ymax = rep(100, times = 1, each = 1)),
+                data.frame(x = c(2.5, 3.5),
+                           ymin = rep(0, times = 2, each = 1),
+                           ymax = rep(100, times = 2, each = 1)))
+  
+  for (i in expeV) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>% 
+      mutate(tasksNum = factor(tasksNum))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #to plot the different conditions
+      #get maximum number of blocks day 1
+      Nblocks <- max(as.numeric(dataD$tasksNum))
+      #colors
+      Cndcol <- c('#e6e7e8', '#a7a9ac', '#414042') #no_pert, trained_pert and untrained_pert
+      #x coordinates
+      sp <- 0.4
+      if (j == 1) {
+        CndXlim <- data.frame(nopert    = c(1-sp, 4.5),
+                              trained   = c(4.5, Nblocks+sp),
+                              untrained = c(NA, NA))
+      } else {
+        CndXlim <- data.frame(nopert    = c(3.5, 4+sp),
+                              trained   = c(1-sp, 2.5),
+                              untrained = c(2.5, 3.5))
+      }
+      
+      #compute summary for that day
+      summ_dataD <- dataD %>% 
+        group_by(Group, tasksNum) %>% 
+        summarise(mn_hitPercent = mean(hitPercent, na.rm = TRUE),
+                  sd_hitPercent = sd(hitPercent, na.rm = TRUE),
+                  .groups = 'drop')
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      title <- sprintf('Session %s (N = %s)', d[j], n)
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot() + 
+        #individual success rates
+        geom_jitter(data = dataD, aes(x = tasksNum, y = hitPercent,
+                                      group = Group, color = Group),
+                    alpha = 0.25, size = 2,
+                    position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.9)) +
+        #rectangles w/ conditions at the bottom
+        geom_blank() + #otherwise continuous mess up w/ discrete x scale
+        annotate('rect',
+                 xmin = CndXlim$nopert[1], xmax = CndXlim$nopert[2],
+                 ymin = 1, ymax = 12,
+                 fill = Cndcol[1]) +
+        annotate('text', x = CndXlim$nopert[1]+0.07, y = 7, hjust = 0, size = 3.5,
+                 label = 'None', color = 'black', lineheight = 0.75) +
+        annotate('rect',
+                 xmin = CndXlim$trained[1], xmax = CndXlim$trained[2],
+                 ymin = 1, ymax = 12,
+                 fill = Cndcol[2]) +
+        annotate('text', x = CndXlim$trained[1]+0.07, y = 7, hjust = 0, size = 3.5,
+                 label = 'Trained', color = 'black', lineheight = 0.75) +
+        annotate('rect',
+                 xmin = CndXlim$untrained[1], xmax = CndXlim$untrained[2],
+                 ymin = 1, ymax = 12,
+                 fill = Cndcol[3]) +
+        annotate('text', x = CndXlim$untrained[1]+0.07, y = 7, hjust = 0, size = 3.5,
+                 label = 'Untrained', color = 'white', lineheight = 0.75) +
+        #success rates averaged across groups
+        geom_line(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                         group = Group, color = Group),
+                  position = position_dodge(0.4), size = 1) +
+        geom_point(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                          group = Group, color = Group),
+                   position = position_dodge(0.4), size = 2.5) +
+        #error bar with mean +/- SD
+        geom_errorbar(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                             ymin = mn_hitPercent - sd_hitPercent,
+                                             ymax = mn_hitPercent + sd_hitPercent,
+                                             group = Group, color = Group),
+                      position = position_dodge(0.4), size = 0.8, width = 0.3) +
+        geom_segment(data = vline[[j]],
+                     mapping = aes(x = x, y = ymin, xend = x, yend = ymax),
+                     color = 'black', linetype = 'dashed', size = 0.4) +
+        
+        theme_classic_article() +
+        #add lots of space under legend box to manually add stats
+        theme(legend.box.spacing = unit(c(0,0,60,0), 'pt')) +
+        scale_color_manual(name = 'Group', labels = lbl, values = gpsCol) + 
+        scale_y_continuous(breaks = seq(0, 100, 20), expand = c(0, 0)) + 
+        #make drawings unconfined to the plot panel
+        coord_cartesian(clip = 'off') + 
+        labs(title = title, x = 'Blocks',
+             #remove y title for session 2 plot
+             y = if (j == 1) 'Successful trials (%)' else element_blank()) +
+        #remove y text labels for session 2 plot
+        theme(axis.text.y = if (j == 2) element_blank())
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(2,1.2),
+                      labels = c('A','B'), font.label = list(size = 18))
+    
+    #filename to save figure
+    fname = sprintf('./docs/figures/VSSposter_SuccRate_avg_%s.svg', expNames[i])
+    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+    
+  }
+  
+}
+
+
 plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
   
   #show a message if one of the arguments is missing?
@@ -499,6 +640,98 @@ plotDelta <- function(df, whichY = 'mean', save.as = 'svg', WxL = c(15,7)) {
 }
 
 
+VSS_plotDelta <- function(df, WxL = c(15,7), expeV) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #set custom colors
+  gpsCol <- c('darkorchid3', 'darkorange1')
+  
+  #to represent trials w/ changes in conditions (different depending on the day)
+  vline <- list(c(200),
+                c(100, 150))
+  
+  for (i in expeV) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      mutate(tasksNum = factor(tasksNum))
+    
+    #to plot the size of the perturbation
+    maxtrialsD1 <- max(dfdata[which(dfdata$Day == 1), ]$trialsN)
+    pertPlt <- data.frame(xstart = c(200, 0), 
+                          xend = c(maxtrialsD1, 150), 
+                          ystart = rep(max(perturb[[expNames[i]]]$perturb_size)*-1, times = 2), 
+                          yend = rep(min(perturb[[expNames[i]]]$perturb_size)*-1, times = 2))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      title <- sprintf('Session %s (N = %s)', d[j], n)
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot(dataD, aes(x = trialsN, y = iDelta_mn, 
+                             color = Group, fill = Group, 
+                             group = interaction(Group, tasksNum))) + #group = interaction to dissociate between blocks and groups
+        #annotate paddle border
+        annotate('text', x = 0, y = pdlL[2] + 0.015, label = 'Paddle border', 
+                 color = 'black', hjust = +0.1) + 
+        geom_hline(yintercept = pdlL, linetype = 'dotted') +
+        geom_hline(yintercept = 0) +
+        geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) + 
+        #data
+        geom_point(alpha = 0.25, size = 2.8) +
+        geom_smooth(se = F, alpha = 0.35, span = 0.9, size = 1.2) +
+        
+        theme_classic_article() + 
+        scale_color_manual(name = 'Group', labels = lbl, values = gpsCol) + 
+        scale_fill_manual(name = 'Group', labels = lbl, values = gpsCol) + 
+        scale_x_continuous(breaks = seq(0, 500, 50)) + 
+        scale_y_continuous(breaks = seq(-0.1, 0.1, 0.05), 
+                           limits = c(min(dfdata$iDelta_mn), max(dfdata$iDelta_mn))) + 
+        labs(title = title, x = 'Trials',
+             #remove y title for session 2 plot
+             y = if (j == 1) 'Distance between paddle and ball (a.u.)' else element_blank()) +
+        #remove y text labels for session 2 plot
+        theme(axis.text.y = if (j == 2) element_blank()) 
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(2,1.1), #width fig1 = 2*fig2 to have same x scale
+                      labels = c('A','B'), font.label = list(size = 18))
+    
+    #filename to save figure
+    fname = sprintf('./docs/figures/VSSposter_interceptDelta_avg_%s.svg', expNames[i])
+    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+    
+  }
+  
+}
+
+
 plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   
   #trialsN to keep for each day
@@ -578,6 +811,7 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
       scale_y_continuous(limits = c(-0.45, 0.3), breaks = seq(-0.4, 0.2, 0.2)) + 
       labs(title = ttl,
            x = NULL, y = 'Distance between paddle and ball (a.u.)')
+    
   }
   
   # plist <- lapply(dfdata, lbl, mkplot)
@@ -592,6 +826,107 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   #filename to save figure
   fname = sprintf('./docs/figures/stats_interceptDelta_%s.svg', whichVersion)
     ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+  
+}
+
+
+VSS_plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
+  
+  #set custom colors
+  gpsCol <- c('darkorchid3', 'darkorange1')
+  
+  #trialsN to keep for each day
+  kp_trialsN <- list(c(200, 201, 250), #day1
+                     c(1, 100, 101, 150, 151, 200)) #day2
+  
+  dfdata <- df %>% 
+    dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
+    filter(expName == whichVersion) %>% 
+    mutate(trialsN = trialsNum + (tasksNum-1)*50) %>% 
+    filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
+    convert_as_factor(trialsN) %>% 
+    split(., .$Day)
+  
+  dfdata <- mapply(function(x, y) filter(x, x$trialsN %in% y),
+                   x = dfdata, y = kp_trialsN, SIMPLIFY = F)
+  
+  session <- list(c('1'),
+                  c('2'))
+  
+  #to plot paddle length
+  pdlL <- c(-params$paddle[whichVersion, 'x'], params$paddle[whichVersion, 'x'])
+  
+  #to plot the size of the perturbation
+  pertPltX <- list(c(1.5, +Inf),
+                   c(-Inf, 4.5))
+  pertPltY <- data.frame(ystart = max(perturb[[whichVersion]]$perturb_size)*-1,
+                         yend = min(perturb[[whichVersion]]$perturb_size)*-1)
+  
+  #get number of participants in each group (n.gp)
+  n.gp <- demoG$N %>%
+    filter(expName == whichVersion) %>%
+    split(., .$Day)
+  
+  #set title and labels
+  title <- lapply(n.gp, function(x) {sprintf('Session %s', unique(x$Day))})
+  lbl <- lapply(n.gp, function(x) {sprintf('%s\n(N = %s)', Gps, x$n)})
+  
+  #make plots
+  mkplot <- function(x, lgd, ttl, pertX, session) {
+    
+    #compute means per group
+    x_gp <- x %>% 
+      group_by(trialsN, Group) %>% 
+      summarise(mn_intercept = mean(interceptDelta, na.rm = TRUE),
+                sd_intercept = sd(interceptDelta, na.rm = TRUE),
+                .groups = 'drop')
+    
+    ggplot(x, aes(x = trialsN, y = interceptDelta, color = Group)) +
+      geom_hline(yintercept = pdlL, linetype = 'dotted', size = 0.3) +
+      geom_hline(yintercept = 0, size = 0.3) +
+      #perturbation size
+      annotate('rect', 
+               xmin = pertX[1], xmax = pertX[2],
+               ymin = pertPltY$ystart, ymax = pertPltY$yend,
+               fill = 'grey90') +
+      annotate('text', x = pertX[2], y = mean(c(pertPltY$ystart, pertPltY$yend)),
+               label = 'Perturbation size', color = 'grey50', hjust = +1.05) + 
+      #individual data
+      geom_jitter(alpha = 0.25, size = 2.5, 
+                  position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.9)) +
+      #average across participants in the same group
+      geom_pointrange(data = x_gp, aes(y = mn_intercept, 
+                                       ymin = mn_intercept - sd_intercept,
+                                       ymax = mn_intercept + sd_intercept),
+                      position = position_dodge(0.4), 
+                      size = 1, fatten = 3.5, shape = 22, fill = 'white') + 
+      
+      theme_classic_article() + 
+      theme(legend.position = 'none',
+            plot.title = element_text(margin = margin(b = 70, unit = 'pt'))) + #increase margin below title to manually add stats
+      scale_x_discrete(labels = paste0('Trial\n', x$trialsN)) + 
+      scale_y_continuous(limits = c(min(x$interceptDelta), max(x$interceptDelta)), 
+                         breaks = seq(-0.4, 0.2, 0.2)) + 
+      scale_color_manual(values = gpsCol) +
+      labs(title = ttl, x = NULL,
+           #remove y title for session 2 plot
+           y = if (session == 1) 'Distance between paddle and ball (a.u.)' else element_blank()) +
+      #remove y text labels for session 2 plot
+      theme(axis.text.y = if (session == 2) element_blank())
+    
+  }
+  
+  plist <- mapply(mkplot, dfdata, lbl, title, pertPltX, session, SIMPLIFY = FALSE)
+  
+  #save plots as svg
+  # plot <- ggarrange(plist[[1]], NULL, plist[[2]], ncol = 3, widths = c(0.7,0.6,1),
+  #                   labels = c('C','','D'), font.label = list(size = 18))
+  plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(0.6,1),
+                    labels = c('C','D'), font.label = list(size = 18))
+  
+  #filename to save figure
+  fname = sprintf('./docs/figures/VSSposter_stats_interceptDelta_%s.svg', whichVersion)
+  ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
   
 }
 

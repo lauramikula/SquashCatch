@@ -76,6 +76,9 @@ dataSucc <- data %>%
 plotSuccessRate(dataSucc, save.as = 'pdf')
 plotSuccessRate(dataSucc, save.as = 'svg', WxL = c(10,5))
 
+#VSS plot
+VSS_plotSuccessRate(dataSucc, WxL = c(10,5), expeV = 3)
+
 
 ###stats ----
 
@@ -169,6 +172,11 @@ dataDelta <- data %>%
 #plots averaged across participants
 plotDelta(dataDelta, save.as = 'pdf', WxL = c(15,6))
 plotDelta(dataDelta, save.as = 'svg', WxL = c(12,6))
+
+#VSS plot
+VSS_plotDelta(dataDelta, WxL = c(12,6), expeV = 3)
+#VSS plot stats
+VSS_plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(12,4.5))
 
 
 ###stats ----
