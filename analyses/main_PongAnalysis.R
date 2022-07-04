@@ -77,7 +77,7 @@ plotSuccessRate(dataSucc, save.as = 'pdf')
 plotSuccessRate(dataSucc, save.as = 'svg', WxL = c(10,5))
 
 #VSS plot
-VSS_plotSuccessRate(dataSucc, WxL = c(10,5), expeV = 3)
+VSS_plotSuccessRate(dataSucc, WxL = c(12,5), expeV = 3)
 
 
 ###stats ----
@@ -142,6 +142,24 @@ rm(dataD, res.aov, contrD1, contrD2, postHoc)
 
 
 
+##success rate per target ----
+
+#get data
+dataSuccPerTarget <- data %>% 
+  filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
+  mutate(alphaChoice = abs(alphaChoice)) %>% #use absolute values for alphaChoice
+  group_by(expName, participant, Day, tasksNum, alphaChoice) %>% 
+  summarise(hitPercent = mean(HitMiss, na.rm = T)*100,
+            n = n(),
+            .groups = 'drop')
+
+
+#plots averaged across participants
+plotSuccessRateTarget(dataSuccPerTarget, save.as = 'pdf')
+plotSuccessRateTarget(dataSuccPerTarget, save.as = 'svg', WxL = c(10,5))
+
+
+
 ##proportion of trials with 0, 5 and 10 points ----
 
 dataScore <- getScore(data)
@@ -174,7 +192,7 @@ plotDelta(dataDelta, save.as = 'pdf', WxL = c(15,6))
 plotDelta(dataDelta, save.as = 'svg', WxL = c(12,6))
 
 #VSS plot
-VSS_plotDelta(dataDelta, WxL = c(12,6), expeV = 3)
+VSS_plotDelta(dataDelta, WxL = c(12,4.5), expeV = 3)
 #VSS plot stats
 VSS_plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(12,4.5))
 

@@ -263,6 +263,158 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
 }
 
 
+plotSuccessRateTarget <- function(df, save.as = 'svg', WxL = c(12,7)) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/SuccRatePerTarget_avg.pdf', width=WxL[1], height=WxL[2])
+  }
+  
+  #to plot lines representing changes in conditions (different depending on the day)
+  vline <- list(data.frame(x = c(4.5),
+                           ymin = rep(0, times = 1, each = 1),
+                           ymax = rep(100, times = 1, each = 1)),
+                data.frame(x = c(2.5, 3.5),
+                           ymin = rep(0, times = 2, each = 1),
+                           ymax = rep(100, times = 2, each = 1)))
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>% 
+      mutate(tasksNum = factor(tasksNum),
+             alphaChoice = factor(alphaChoice))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #to plot the different conditions
+      #get maximum number of blocks day 1
+      Nblocks <- max(as.numeric(dataD$tasksNum))
+      #colors
+      Cndcol <- c('#e6e7e8', '#a7a9ac', '#414042') #no_pert, trained_pert and untrained_pert
+      #x coordinates
+      sp <- 0.4
+      if (j == 1) {
+        CndXlim <- data.frame(nopert    = c(1-sp, 4.5),
+                              trained   = c(4.5, Nblocks+sp),
+                              untrained = c(NA, NA))
+      } else {
+        CndXlim <- data.frame(nopert    = c(3.5, 4+sp),
+                              trained   = c(1-sp, 2.5),
+                              untrained = c(2.5, 3.5))
+      }
+      
+      #compute summary for that day
+      summ_dataD <- dataD %>% 
+        group_by(tasksNum, alphaChoice) %>% 
+        summarise(mn_hitPercent = mean(hitPercent, na.rm = TRUE),
+                  sd_hitPercent = sd(hitPercent, na.rm = TRUE),
+                  .groups = 'drop')
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Session %s\nN = %s', d[j], n)
+      } else {
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
+      }
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot() + 
+        # #individual success rates
+        # geom_jitter(data = dataD, aes(x = tasksNum, y = hitPercent,
+        #                               group = alphaChoice, color = alphaChoice),
+        #             alpha = 0.25, size = 2,
+        #             position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.9)) +
+        # #rectangles w/ conditions at the bottom
+        # geom_blank() + #otherwise continuous mess up w/ discrete x scale
+        # annotate('rect',
+        #          xmin = CndXlim$nopert[1], xmax = CndXlim$nopert[2],
+        #          ymin = 1, ymax = 12,
+        #          fill = Cndcol[1]) +
+        # annotate('text', x = CndXlim$nopert[1]+0.04, y = 7, hjust = 0, size = 2.5,
+        #          label = 'No\nperturbation', color = 'black', lineheight = 0.75) +
+        # annotate('rect',
+        #          xmin = CndXlim$trained[1], xmax = CndXlim$trained[2],
+        #          ymin = 1, ymax = 12,
+        #          fill = Cndcol[2]) +
+        # annotate('text', x = CndXlim$trained[1]+0.04, y = 7, hjust = 0, size = 2.5,
+        #          label = 'Trained\nperturbation', color = 'black', lineheight = 0.75) +
+        # annotate('rect',
+        #          xmin = CndXlim$untrained[1], xmax = CndXlim$untrained[2],
+        #          ymin = 1, ymax = 12,
+        #          fill = Cndcol[3]) +
+        # annotate('text', x = CndXlim$untrained[1]+0.04, y = 7, hjust = 0, size = 2.5,
+        #          label = 'Untrained\nperturbation', color = 'white', lineheight = 0.75) +
+        #success rates averaged across groups
+        geom_line(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                         group = alphaChoice, color = alphaChoice),
+                  position = position_dodge(0.4), size = 0.6) +
+        geom_point(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                          group = alphaChoice, color = alphaChoice),
+                   position = position_dodge(0.4), size = 2) +
+        #error bar with mean +/- SD
+        geom_errorbar(data = summ_dataD, aes(x = tasksNum, y = mn_hitPercent,
+                                             ymin = mn_hitPercent - sd_hitPercent,
+                                             ymax = mn_hitPercent + sd_hitPercent,
+                                             group = alphaChoice, color = alphaChoice),
+                      position = position_dodge(0.4), size = 0.6, width = 0.2) +
+        geom_segment(data = vline[[j]],
+                     mapping = aes(x = x, y = ymin, xend = x, yend = ymax),
+                     color = 'black', linetype = 'dashed', size = 0.4) +
+        
+        theme_classic_article() + 
+        #add lots of space under legend box to manually add stats
+        theme(legend.box.spacing = unit(c(0,0,60,0), 'pt')) +
+        # scale_color_discrete(name = 'Target angle') +
+        # scale_y_continuous(breaks = seq(0, 100, 20), expand = c(0, 0)) +
+        labs(title = title, x = 'Blocks', y = 'Successful trials (%)') +
+        coord_cartesian(clip = 'off') #make drawings unconfined to the plot panel
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(2,1.2),
+                      labels = c('A','B'), font.label = list(size = 18))
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/SuccRatePerTarget_avg_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
 VSS_plotSuccessRate <- function(df, WxL = c(12,7), expeV) {
   
   #show a message if one of the arguments is missing?
@@ -700,8 +852,8 @@ VSS_plotDelta <- function(df, WxL = c(15,7), expeV) {
         geom_hline(yintercept = 0) +
         geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) + 
         #data
-        geom_point(alpha = 0.25, size = 2.8) +
-        geom_smooth(se = F, alpha = 0.35, span = 0.9, size = 1.2) +
+        geom_point(alpha = 0.25, size = 2.4) +
+        geom_smooth(se = F, alpha = 0.35, span = 0.9, size = 1) +
         
         theme_classic_article() + 
         scale_color_manual(name = 'Group', labels = lbl, values = gpsCol) + 
@@ -1061,7 +1213,7 @@ plotDeltaShift_trials <- function(df, save.as = 'svg', WxL = c(15,10)) {
       if (j==1) {
         pert_sched <- list('No perturbation (Block 4)','Trained perturbation (Block 5)')
       } else {
-        pert_sched <- list('Trained perturbation (Block 2)', 
+        pert_sched <- list('Trained perturbation (Block 1)', 
                            'Untrained perturbation (Block 3)', 
                            'No perturbation (Block 4)')
       }
