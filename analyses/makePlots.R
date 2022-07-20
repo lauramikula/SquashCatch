@@ -792,6 +792,121 @@ plotDelta <- function(df, whichY = 'mean', save.as = 'svg', WxL = c(15,7)) {
 }
 
 
+plotDeltaAbs <- function(df, save.as = 'svg', WxL = c(15,7)) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/interceptDeltaAbs_avg.pdf', width=WxL[1], height=WxL[2])
+  }
+  
+  #to represent trials w/ changes in conditions (different depending on the day)
+  vline <- list(c(200),
+                c(100, 150))
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      mutate(tasksNum = factor(tasksNum))
+    
+    #to plot the size of the perturbation
+    maxtrialsD1 <- max(dfdata[which(dfdata$Day == 1), ]$trialsN)
+    pertPlt <- data.frame(xstart = c(200, 0), 
+                          xend = c(maxtrialsD1, 150), 
+                          ystart = rep(max(perturb[[expNames[i]]]$perturb_size)*1, times = 2), 
+                          yend = rep(min(perturb[[expNames[i]]]$perturb_size)*1, times = 2))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Session %s\nN = %s', d[j], n)
+      } else {
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
+      }
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot(dataD, aes(x = trialsN, y = iDelta_abs_mn, 
+                             color = Group, fill = Group,
+                             group = interaction(Group, tasksNum))) + #group = interaction to dissociate between blocks and groups
+        #perturbation size
+        annotate('rect',
+                 xmin = pertPlt$xstart[j], xmax = pertPlt$xend[j],
+                 ymin = pertPlt$ystart[j], ymax = pertPlt$yend[j],
+                 fill = 'grey90') + 
+        annotate('text', x = pertPlt$xstart[j], y = pertPlt$yend[j] + 0.035,
+                 label = 'Perturbation size', color = 'grey50', hjust = -0.05) + 
+        #paddle border
+        geom_hline(yintercept = pdlL, linetype = 'dotted') +
+        geom_hline(yintercept = 0) +
+        geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) + 
+        #data
+        # geom_ribbon(aes(ymin = iDelta_abs_mn - iDelta_abs_sd, ymax = iDelta_abs_mn + iDelta_abs_sd), 
+        #             alpha = 0.3, color = NA) + #shaded area is SD
+        geom_ribbon(aes(ymin = iDelta_abs_mn - margin_95CI, ymax = iDelta_abs_mn + margin_95CI), 
+                    alpha = 0.3, color = NA) + #shaded area is 95% CI
+        geom_line() + 
+        #annotate paddle border
+        annotate('text', x = 0, y = pdlL[1] + 0.015, label = 'Paddle border', 
+                 color = 'black', hjust = +0.1) + 
+        
+        theme_classic_article() +  
+        scale_color_discrete(name = 'Group', labels = lbl) +
+        scale_fill_discrete(name = 'Group', labels = lbl) +
+        scale_x_continuous(breaks = seq(0, 500, 50)) + 
+        # scale_y_continuous(limits = c(0, pertPlt$ystart[j])) +
+        scale_y_continuous(limits = c(-0.055, pertPlt$ystart[j])) +
+        labs(title = title, x = 'Trials', y = 'Distance between paddle and ball (a.u.)')
+      # ylim(-0.26, 0.15)
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(2,1.1), #width fig1 = 2*fig2 to have same x scale
+                      labels = c('A','B'), font.label = list(size = 18))
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/interceptDeltaAbs_avg_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
 VSS_plotDelta <- function(df, WxL = c(15,7), expeV) {
   
   #show a message if one of the arguments is missing?
