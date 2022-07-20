@@ -92,9 +92,9 @@ dataD %>%
   shapiro_test(hitPercent)
 ggqqplot(dataD, 'hitPercent') + facet_grid(Group ~ tasksNum)
 
-#homogeneity of variance assumption
+#homogeneity of variance assumption (at each level of tasksNum because mixed ANOVA)
 dataD %>% 
-  group_by(tasksNum) %>% 
+  group_by(tasksNum) %>% #within factor
   levene_test(hitPercent ~ Group) #assess homogeneity of the between factor
 
 #ANOVA
@@ -105,6 +105,11 @@ res.aov <- aov_ez(data = dataD, dv = 'hitPercent', id = 'participant',
 get_anova_table(res.aov)
 #qqplot
 ggqqplot(as.numeric(residuals(res.aov$lm)))
+#test normality on residuals
+shapiro_test(as.numeric(residuals(res.aov$lm)))
+#test homogeneity of variance
+dataD %>% 
+  levene_test(hitPercent ~ Group*tasksNum)
 
 #post-hoc tests
 #set custom contrasts
@@ -148,7 +153,9 @@ rm(dataD, res.aov, contrD1, contrD2, postHoc)
 dataSuccPerTarget <- data %>% 
   filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
   mutate(alphaChoice = abs(alphaChoice)) %>% #use absolute values for alphaChoice
-  group_by(expName, participant, Day, tasksNum, alphaChoice) %>% 
+  mutate(pertChoice = abs(pertChoice)) %>%  #use absolute values for pertChoice
+  filter(Day == 1 & tasksNum > 1) %>%
+  group_by(expName, participant, pertChoice, alphaChoice) %>% 
   summarise(hitPercent = mean(HitMiss, na.rm = T)*100,
             n = n(),
             .groups = 'drop')
@@ -157,6 +164,92 @@ dataSuccPerTarget <- data %>%
 #plots averaged across participants
 plotSuccessRateTarget(dataSuccPerTarget, save.as = 'pdf')
 plotSuccessRateTarget(dataSuccPerTarget, save.as = 'svg', WxL = c(10,5))
+
+
+###stats ----
+
+dataD <- dataSuccPerTarget %>%
+  filter(expName == 'bounceV3') %>%
+  convert_as_factor(alphaChoice, pertChoice)
+
+plt <- ggplot(data = dataD, aes(x = alphaChoice, y = hitPercent,
+                                color = pertChoice)) + 
+  geom_boxplot()
+print(plt)
+
+#normality assumption
+dataD %>%
+  group_by(pertChoice, alphaChoice) %>%
+  shapiro_test(hitPercent)
+ggqqplot(dataD, 'hitPercent') + facet_grid(pertChoice ~ alphaChoice)
+
+#homogeneity of variance assumption
+dataD %>%
+  levene_test(hitPercent ~ alphaChoice*pertChoice)
+
+#ANOVA
+res.aov <- aov_ez(data = dataD, dv = 'hitPercent', id = 'participant',
+                  between = NULL, within = c('pertChoice', 'alphaChoice'),
+                  anova_table = list(es = 'pes'), #get partial eta-squared
+                  include_aov = TRUE) #get uncorrected degrees of freedom
+get_anova_table(res.aov)
+#qqplot
+ggqqplot(as.numeric(residuals(res.aov$lm)))
+
+#post-hoc tests
+
+#main effect of alphaChoice
+emmeans(res.aov, ~ alphaChoice, adjust = 'bonferroni')
+dataD %>%
+  pairwise_t_test(
+    hitPercent ~ alphaChoice, paired = TRUE,
+    p.adjust.method = 'bonferroni'
+  )
+
+#main effect of pertChoice
+emmeans(res.aov, ~ pertChoice, adjust = 'bonferroni')
+dataD %>%
+  pairwise_t_test(
+    hitPercent ~ pertChoice, paired = TRUE,
+    p.adjust.method = 'bonferroni'
+  )
+
+#significant interaction
+postHoc <- emmeans(res.aov, ~ alphaChoice * pertChoice)
+
+#all possible contrasts
+pairs(postHoc, adjust = 'bonferroni')
+
+#set custom contrasts
+invisible( #doesn't print out output
+  contr <- list(
+    `pert0_70 - pert9_70` = c(1, 0, 0, 0, -1, 0, 0, 0),
+    `pert0_75 - pert9_75` = c(0, 1, 0, 0, 0, -1, 0, 0),
+    `pert0_80 - pert9_80` = c(0, 0, 1, 0, 0, 0, -1, 0),
+    `pert0_85 - pert9_85` = c(0, 0, 0, 1, 0, 0, 0, -1),
+    `pert0_70 - pert0_75` = c(1, -1, 0, 0, 0, 0, 0, 0),
+    `pert0_70 - pert0_80` = c(1, 0, -1, 0, 0, 0, 0, 0),
+    `pert0_70 - pert0_85` = c(1, 0, 0, -1, 0, 0, 0, 0),
+    `pert0_75 - pert0_80` = c(0, 1, -1, 0, 0, 0, 0, 0),
+    `pert0_75 - pert0_85` = c(0, 1, 0, -1, 0, 0, 0, 0),
+    `pert0_80 - pert0_85` = c(0, 0, 1, -1, 0, 0, 0, 0),
+    `pert9_70 - pert9_75` = c(0, 0, 0, 0, 1, -1, 0, 0),
+    `pert9_70 - pert9_80` = c(0, 0, 0, 0, 1, 0, -1, 0),
+    `pert9_70 - pert9_85` = c(0, 0, 0, 0, 1, 0, 0, -1),
+    `pert9_75 - pert9_80` = c(0, 0, 0, 0, 0, 1, -1, 0),
+    `pert9_75 - pert9_85` = c(0, 0, 0, 0, 0, 1, 0, -1),
+    `pert9_80 - pert9_80` = c(0, 0, 0, 0, 0, 0, 1, -1)
+  )
+)
+
+postHoc <- emmeans(res.aov, ~ alphaChoice * pertChoice, contr = contr, adjust = 'bonferroni')
+postHoc$contrasts %>% 
+  as.data.frame() %>% 
+  mutate(p_val = format.pval(p.value, digits = 3)) %>% 
+  add_significance()
+#get effect sizes
+eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:pertChoice:alphaChoice`), 
+         edf = df.residual(res.aov$aov$`participant:pertChoice:alphaChoice`))
 
 
 
@@ -183,13 +276,20 @@ dataDelta <- data %>%
   summarise(iDelta_mn = mean(interceptDelta, na.rm=T),
             iDelta_med = median(interceptDelta, na.rm=T),
             iDelta_sd = sd(interceptDelta, na.rm=T),
+            iDelta_abs_mn = mean(abs(interceptDelta), na.rm=T),
+            iDelta_abs_sd = sd(abs(interceptDelta), na.rm=T),
             n = n(),
+            margin_95CI = qt(p = 0.05/2, df = n-1, lower.tail = F) * (iDelta_abs_sd / sqrt(n)),
             .groups = 'drop')
 
 
 #plots averaged across participants
 plotDelta(dataDelta, save.as = 'pdf', WxL = c(15,6))
 plotDelta(dataDelta, save.as = 'svg', WxL = c(12,6))
+
+#same as before but with absolute interceptDelta
+plotDeltaAbs(dataDelta, save.as = 'pdf', WxL = c(15,6)) #with 95% CI
+plotDeltaAbs(dataDelta, save.as = 'svg', WxL = c(12,6))
 
 #VSS plot
 VSS_plotDelta(dataDelta, WxL = c(12,4.5), expeV = 3)
