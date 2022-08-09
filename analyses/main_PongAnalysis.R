@@ -53,11 +53,6 @@ perturb <- getPerturb(data)
 demoG <- getDemogr(data, survey)
 
 
-##get cursor data ----
-
-datacursor <- getKinematics(data)
-
-
 
 #data analysis ----
 
@@ -154,16 +149,16 @@ dataSuccPerTarget <- data %>%
   filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
   mutate(alphaChoice = abs(alphaChoice)) %>% #use absolute values for alphaChoice
   mutate(pertChoice = abs(pertChoice)) %>%  #use absolute values for pertChoice
-  filter(Day == 1 & tasksNum > 1) %>%
+  filter(Day == 1) %>%
   group_by(expName, participant, pertChoice, alphaChoice) %>% 
   summarise(hitPercent = mean(HitMiss, na.rm = T)*100,
             n = n(),
             .groups = 'drop')
 
 
-#plots averaged across participants
-plotSuccessRateTarget(dataSuccPerTarget, save.as = 'pdf')
-plotSuccessRateTarget(dataSuccPerTarget, save.as = 'svg', WxL = c(10,5))
+# #plots averaged across participants
+# plotSuccessRateTarget(dataSuccPerTarget, save.as = 'pdf')
+# plotSuccessRateTarget(dataSuccPerTarget, save.as = 'svg', WxL = c(10,5))
 
 
 ###stats ----
@@ -173,8 +168,18 @@ dataD <- dataSuccPerTarget %>%
   convert_as_factor(alphaChoice, pertChoice)
 
 plt <- ggplot(data = dataD, aes(x = alphaChoice, y = hitPercent,
-                                color = pertChoice)) + 
-  geom_boxplot()
+                                fill = pertChoice)) + 
+  geom_boxplot() + 
+  # stat_summary(fun = mean, geom = 'point', color = 'white', size = 2,
+  #              position = position_dodge(width = 0.75)) + #add average
+  theme_classic() + 
+  theme(legend.position = 'top', text = element_text(size = 15)) + 
+  scale_fill_manual(name = NULL, labels = c('No perturbation', 'Perturbation'), 
+                    values = c('#99c68e', '#8d4585')) + 
+  labs(title = 'Success rates per target (Day 1)',
+       x = 'Target launch angle', y = 'Successful trials (%)') + 
+  ylim(0, 100) + 
+  scale_x_discrete(labels = c('70' = '70°', '75' = '75°', '80' = '80°', '85' = '85°'))
 print(plt)
 
 #normality assumption
@@ -251,6 +256,46 @@ postHoc$contrasts %>%
 eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:pertChoice:alphaChoice`), 
          edf = df.residual(res.aov$aov$`participant:pertChoice:alphaChoice`))
 
+pwc <- dataD %>% 
+  group_by(pertChoice) %>%
+  emmeans_test(hitPercent ~ alphaChoice, p.adjust.method = 'bonferroni') %>% 
+  mutate(p_adj = format.pval(p.adj, eps = 0.001, digits = 1)) %>% 
+  add_xy_position(x = 'alphaChoice', group = 'pertChoice', dodge = 0.75)
+pwc$p_adj
+
+##add p-values to plot
+pval <- dataD %>% 
+  group_by(pertChoice) %>% 
+  pairwise_t_test(hitPercent ~ alphaChoice,
+                  p.adjust.method = 'bonferroni') %>% 
+  add_xy_position(x = 'alphaChoice', group = 'pertChoice', dodge = 0.75)
+
+#pwc better for stats?
+plt <- ggplot(data = dataD, aes(x = alphaChoice, y = hitPercent,
+                         fill = pertChoice, color = pertChoice)) + 
+  geom_boxplot(color = 'black') + 
+  # stat_summary(fun = mean, geom = 'point', color = 'white', size = 2,
+  #              position = position_dodge(width = 0.75)) + #add average
+  theme_classic() + 
+  theme(legend.position = 'top', text = element_text(size = 15)) + 
+  scale_fill_manual(name = NULL, labels = c('No perturbation', 'Perturbation'), 
+                    values = c('#99c68e', '#8d4585')) + 
+  scale_color_manual(name = NULL, labels = NULL,
+                    values = c('#99c68e', '#8d4585')) + 
+  labs(title = 'Success rates per target (session 1)',
+       x = 'Target launch angle', y = 'Successful trials (%)') + 
+  scale_x_discrete(labels = c('70' = '70°', '75' = '75°', '80' = '80°', '85' = '85°')) +
+  scale_y_continuous(breaks = seq(0, 100, 25), expand = expansion(mult = c(0, 1.5))) +
+  add_pvalue(pwc, label = '{p.adj.signif}',
+             xmin = 'xmin', xmax = 'xmax', #for dodge positions
+             show.legend = FALSE,
+             label.size = 4,
+             step.increase = 0.15) + 
+  coord_cartesian(ylim = c(0, 100), clip = 'off')
+
+ggsave(file='./docs/figures/SuccessPerTarget_bounceV3.png', 
+       plot=plt, width=8, height=6, dpi = 300)
+
 
 
 ##proportion of trials with 0, 5 and 10 points ----
@@ -287,9 +332,9 @@ dataDelta <- data %>%
 plotDelta(dataDelta, save.as = 'pdf', WxL = c(15,6))
 plotDelta(dataDelta, save.as = 'svg', WxL = c(12,6))
 
-#same as before but with absolute interceptDelta
-plotDeltaAbs(dataDelta, save.as = 'pdf', WxL = c(15,6)) #with 95% CI
-plotDeltaAbs(dataDelta, save.as = 'svg', WxL = c(12,6))
+###same as before but with absolute interceptDelta ----
+plotDeltaAbs(dataDelta, save.as = 'pdf', WxL = c(15,6)) #with 95% CI or SD
+plotDeltaAbs(dataDelta, save.as = 'svg', WxL = c(12,5))
 
 #VSS plot
 VSS_plotDelta(dataDelta, WxL = c(12,4.5), expeV = 3)
@@ -328,7 +373,7 @@ dataD2 <- data %>%
          trialsN = trialsNum + (tasksNum-1)*50) %>% 
   convert_as_factor(Group, time, participant, trialsN)
 
-dataD <- dataD2
+dataD <- dataD1
 
 #normality assumption
 dataD %>%
@@ -360,6 +405,63 @@ anova(glmm)
 #                family = gaussian(link = 'log'))
 # ggqqplot(residuals(glmm2))
 # anova(glmm2)
+
+#post-hoc tests
+#set custom contrasts
+lvls = levels(dataD2$time)
+contrD2 <- list()
+contrD2[[paste(lvls[1], lvls[2], sep = '-')]] = c(1, -1, 0, 0, 0, 0)
+contrD2[[paste(lvls[2], lvls[3], sep = '-')]] = c(0, 1, -1, 0, 0, 0)
+contrD2[[paste(lvls[3], lvls[4], sep = '-')]] = c(0, 0, 1, -1, 0, 0)
+contrD2[[paste(lvls[2], lvls[5], sep = '-')]] = c(0, 1, 0, 0, -1, 0)
+contrD2[[paste(lvls[5], lvls[6], sep = '-')]] = c(0, 0, 0, 0, 1, -1)
+
+#main effect of time, no interaction
+postHoc <- emmeans(res.aov, pairwise ~ time, adjust = 'bonferroni') #pairwise to look at all possible combinations
+postHoc$contrasts %>%
+  as.data.frame() %>%
+  mutate(p_val = format.pval(p.value, digits = 3)) %>%
+  add_significance()
+#get effect sizes
+eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:time`), 
+         edf = df.residual(res.aov$aov$`participant:time`))
+
+postHoc <- emmeans(res.aov, ~ time, contr = contrD2, adjust = 'bonferroni')
+postHoc$contrasts %>%
+  as.data.frame() %>%
+  mutate(p_val = format.pval(p.value, digits = 3)) %>%
+  add_significance()
+#get effect sizes
+eff_size(postHoc, sigma = sigma(res.aov$aov$`participant:time`), 
+         edf = df.residual(res.aov$aov$`participant:time`))
+
+rm(dataD1, dataD2, dataD, res.aov, contrD2, postHoc, lvls)
+
+
+####same as before but with absolute interceptDelta ----
+
+dataD <- dataD2 %>% 
+  mutate(interceptDelta = abs(interceptDelta))
+
+#normality assumption
+dataD %>%
+  group_by(Group, time) %>%
+  shapiro_test(interceptDelta)
+ggqqplot(dataD, 'interceptDelta') + facet_grid(Group ~ time)
+
+#homogeneity of variance assumption
+dataD %>%
+  group_by(time) %>%
+  levene_test(interceptDelta ~ Group) #assess homogeneity of the between factor
+
+#ANOVA
+res.aov <- aov_ez(data = dataD, dv = 'interceptDelta', id = 'participant',
+                  between = 'Group', within = 'time', type = 3,
+                  anova_table = list(es = 'pes'), #get partial eta-squared
+                  include_aov = TRUE) #get uncorrected degrees of freedom
+get_anova_table(res.aov)
+#qqplot
+ggqqplot(as.numeric(residuals(res.aov$lm)))
 
 #post-hoc tests
 #set custom contrasts
@@ -452,6 +554,9 @@ rm(dataD1, dataD2, datattest, res)
 plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(12,5)) #same width as interceptDelta plot
 plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(10,5))
 
+#same as before but with absolute interceptDelta
+plotDeltaAbs_stats(data, whichVersion = 'bounceV3', WxL = c(12,4)) #same width as interceptDelta plot
+
 
 
 ##ridgeline plots of interceptDelta ----
@@ -460,7 +565,74 @@ plotDelta_stats(data, whichVersion = 'bounceV3', WxL = c(10,5))
 plotDeltaShift_blocks(data, save.as = 'pdf')
 
 #across 10 trials after a perturbation (Day 1 block 5; Day 2 blocks 1,3,4)
-plotDeltaShift_trials(data, save.as = 'pdf')
+plotDeltaShift_trials(data, save.as = 'svg')
+
+
+
+##interceptDelta per target ----
+
+iDelta_targ <- data %>% 
+  filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
+  mutate(alphaChoice = as_factor(abs(alphaChoice)),
+         pertChoice = as_factor(abs(pertChoice)),
+         interceptDelta = abs(interceptDelta)) %>% 
+  filter(expName == 'bounceV3' & Day == 1) %>% 
+  #compute mean velocity for each participant first
+  group_by(participant, Group, pertChoice, alphaChoice) %>% 
+  summarise(mn_pp_delta = mean(interceptDelta, na.rm = TRUE),
+            .groups = 'drop') %>% 
+  drop_na()
+
+
+###stats ----
+
+dataD <- iDelta_targ
+
+#ANOVA
+res.aov <- aov_ez(data = dataD, dv = 'mn_pp_delta', id = 'participant',
+                  between = NULL, within = c('pertChoice', 'alphaChoice'),
+                  anova_table = list(es = 'pes'), #get partial eta-squared
+                  include_aov = TRUE) #get uncorrected degrees of freedom
+get_anova_table(res.aov)
+#qqplot
+ggqqplot(as.numeric(residuals(res.aov$lm)))
+
+pwc <- dataD %>% 
+  group_by(pertChoice) %>%
+  emmeans_test(mn_pp_delta ~ alphaChoice, p.adjust.method = 'bonferroni') %>% 
+  mutate(p_adj = format.pval(p.adj, eps = 0.001, digits = 1)) %>% 
+  add_xy_position(x = 'alphaChoice', group = 'pertChoice', dodge = 0.75)
+pwc$p_adj
+
+
+###plot ----
+plt <- ggplot(data = iDelta_targ, aes(x = alphaChoice, y = mn_pp_delta,
+                                      fill = pertChoice, color = pertChoice)) + 
+  geom_hline(yintercept = +0.05, linetype = 'dotted', size = 0.4) +
+  geom_boxplot(color = 'black') + 
+  # stat_summary(fun = mean, geom = 'point', color = 'white', size = 2,
+  #              position = position_dodge(width = 0.75)) + #add average
+  theme_classic() + 
+  theme(legend.position = 'top', text = element_text(size = 15)) + 
+  scale_fill_manual(name = NULL, labels = c('No perturbation', 'Perturbation'),
+                    values = c('#99c68e', '#8d4585')) +
+  scale_color_manual(name = NULL, labels = NULL,
+                     values = c('#99c68e', '#8d4585')) +
+  labs(title = 'Interception errors per target (session 1)',
+       x = 'Target launch angle', y = 'Interception errors (a.u.)') + 
+  scale_x_discrete(labels = c('70' = '70°', '75' = '75°', '80' = '80°', '85' = '85°')) + 
+  scale_y_continuous(breaks = seq(0, 0.2, 0.05), expand = expansion(mult = c(0.1, 0.6))) + 
+  add_pvalue(pwc, label = '{p.adj.signif}',
+             xmin = 'xmin', xmax = 'xmax', #for dodge positions
+             show.legend = FALSE,
+             label.size = 4,
+             step.increase = 0.07) +
+  coord_cartesian(ylim = c(0, 0.2), clip = 'off')
+
+print(plt)
+
+ggsave(file='./docs/figures/interceptDeltaPerTarget_bounceV3.png', 
+       plot=plt, width=8, height=6, dpi = 300)
 
 
 
@@ -483,6 +655,30 @@ dataDeltaRatio <- data %>%
 #plots averaged across participants
 plotDeltaRatio(dataDeltaRatio, save.as = 'pdf')
 
+
+
+#analysis on kinematics ----
+
+##get cursor data ----
+
+datacursor <- getKinematics(data)
+
+
+##speed profile of cursor movements for hits only ----
+
+#get data
+dataSpeed_block <- getSpeedProfile_block(datacursor)
+
+#plot figures
+plotSpeedProfile_block(dataSpeed_block, save.as = 'pdf', WxL = c(13,8))
+
+
+#same as before but for individual trials
+#get data
+dataSpeed_trial <- getSpeedProfile_trial(datacursor)
+
+#plot figures
+plotSpeedProfile_trial(dataSpeed_trial, save.as = 'pdf', WxL = c(13,8))
 
 
 #exploratory analysis ----

@@ -14,6 +14,7 @@ library(magrittr)
 library(MASS)
 # library(ggforce)
 library(Skillings.Mack)
+library(ggprism)
 
 
 
@@ -190,14 +191,69 @@ getKinematics <- function (df) {
   dfcursor <- df %>%
     separate_rows(ballPosX, ballPosY, paddlePosX, paddlePosY, trialMouse.time,
                   sep = ',|\\[|\\]', convert = T) %>%
+    #compute number of frames (= number of rows within each trial)
+    group_by(participant, Day, tasksNum, trialsNum) %>%
+    mutate(frameNum = row_number(), .before = trialsNum) %>% 
+    ungroup() %>% 
+    #select columns of interest
     dplyr::select(ballPosX, ballPosY, paddlePosX, paddlePosY, paddlePosX_start, 
            interceptBall, bounceTime, connectTime, trialMouse.time, 
-           alphaChoice, pertChoice, horOrTilt, hitOrMiss, trialsNum, 
+           alphaChoice, pertChoice, horOrTilt, hitOrMiss, frameNum, trialsNum, 
            tasksNum, ballSpeed, participant, Group, Day, expName) %>%
     drop_na(ballPosX)
 
   return(dfcursor)
 
+}
+
+
+getSpeedProfile_trial <- function (df) {
+  
+  dfSpeed <- df %>% 
+    filter(hitOrMiss == 'hit') %>% #get hits only
+    group_by(expName, participant, Day, tasksNum, trialsNum) %>%
+    mutate(velocity = abs(paddlePosX - lag(paddlePosX))) %>% 
+    ungroup() %>% 
+    #compute mean velocity for each participant and each trial first
+    group_by(expName, participant, Day, Group, tasksNum, trialsNum, frameNum) %>% 
+    summarise(mn_pp_velocity = mean(velocity, na.rm = TRUE),
+              .groups = 'drop') %>% 
+    group_by(expName, Group, Day, tasksNum, trialsNum, frameNum) %>% 
+    #then average velocity across participants in each group
+    summarise(mn_velocity = mean(mn_pp_velocity, na.rm = TRUE),
+              sd_velocity = sd(mn_pp_velocity, na.rm = TRUE),
+              n = n(),
+              velocity_95CI = qt(p = 0.05/2, df = n-1, lower.tail = F) * (sd_velocity / sqrt(n)),
+              .groups = 'drop') %>% 
+    drop_na()
+  
+  return(dfSpeed)
+  
+}
+
+
+getSpeedProfile_block <- function (df) {
+  
+  dfSpeed <- df %>% 
+    filter(hitOrMiss == 'hit') %>% #get hits only
+    group_by(expName, participant, Day, tasksNum, trialsNum) %>%
+    mutate(velocity = abs(paddlePosX - lag(paddlePosX))) %>% 
+    ungroup() %>% 
+    #compute mean velocity for each participant first
+    group_by(expName, participant, Day, Group, tasksNum, frameNum) %>% 
+    summarise(mn_pp_velocity = mean(velocity, na.rm = TRUE),
+              .groups = 'drop') %>% 
+    group_by(expName, Group, Day, tasksNum, frameNum) %>% 
+    #then average velocity across participants in each group
+    summarise(mn_velocity = mean(mn_pp_velocity, na.rm = TRUE),
+              sd_velocity = sd(mn_pp_velocity, na.rm = TRUE),
+              n = n(),
+              velocity_95CI = qt(p = 0.05/2, df = n-1, lower.tail = F) * (sd_velocity / sqrt(n)),
+              .groups = 'drop') %>% 
+    drop_na()
+  
+  return(dfSpeed)
+  
 }
 
 

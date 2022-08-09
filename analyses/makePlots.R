@@ -249,7 +249,7 @@ plotSuccessRate <- function(df, save.as = 'svg', WxL = c(12,7)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/SuccRate_avg_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)
     }
@@ -401,7 +401,7 @@ plotSuccessRateTarget <- function(df, save.as = 'svg', WxL = c(12,7)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/SuccRatePerTarget_avg_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)
     }
@@ -549,7 +549,7 @@ VSS_plotSuccessRate <- function(df, WxL = c(12,7), expeV) {
     
     #filename to save figure
     fname = sprintf('./docs/figures/VSSposter_SuccRate_avg_%s.svg', expNames[i])
-    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     
   }
   
@@ -661,7 +661,7 @@ plotScore <- function(df, save.as = 'svg', WxL = c(15,7)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/Score_avg_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)
     }
@@ -778,7 +778,7 @@ plotDelta <- function(df, whichY = 'mean', save.as = 'svg', WxL = c(15,7)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/interceptDelta_avg_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)
     }
@@ -810,7 +810,7 @@ plotDeltaAbs <- function(df, save.as = 'svg', WxL = c(15,7)) {
     plist <- list() #empty list to store several plots
     
     #to plot paddle length
-    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
+    pdlL <- params$paddle$x[i]
     
     #get data for each version of the experiment
     dfdata <- df %>%
@@ -857,30 +857,40 @@ plotDeltaAbs <- function(df, save.as = 'svg', WxL = c(15,7)) {
                  xmin = pertPlt$xstart[j], xmax = pertPlt$xend[j],
                  ymin = pertPlt$ystart[j], ymax = pertPlt$yend[j],
                  fill = 'grey90') + 
-        annotate('text', x = pertPlt$xstart[j], y = pertPlt$yend[j] + 0.035,
-                 label = 'Perturbation size', color = 'grey50', hjust = -0.05) + 
+        annotate('text', x = pertPlt$xstart[j], y = (pertPlt$ystart[j] + pertPlt$yend[j])/2,
+                 label = 'Perturbation size', size = 3.5, color = 'grey50', hjust = -0.05) + 
         #paddle border
-        geom_hline(yintercept = pdlL, linetype = 'dotted') +
-        geom_hline(yintercept = 0) +
+        geom_hline(yintercept = pdlL, linetype = 'dotted', size = 0.5) + 
         geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) + 
         #data
-        # geom_ribbon(aes(ymin = iDelta_abs_mn - iDelta_abs_sd, ymax = iDelta_abs_mn + iDelta_abs_sd), 
+        # geom_ribbon(aes(ymin = iDelta_abs_mn - iDelta_abs_sd, ymax = iDelta_abs_mn + iDelta_abs_sd),
         #             alpha = 0.3, color = NA) + #shaded area is SD
-        geom_ribbon(aes(ymin = iDelta_abs_mn - margin_95CI, ymax = iDelta_abs_mn + margin_95CI), 
-                    alpha = 0.3, color = NA) + #shaded area is 95% CI
-        geom_line() + 
-        #annotate paddle border
-        annotate('text', x = 0, y = pdlL[1] + 0.015, label = 'Paddle border', 
-                 color = 'black', hjust = +0.1) + 
-        
-        theme_classic_article() +  
+        geom_ribbon(aes(ymin = iDelta_abs_mn - margin_95CI, ymax = iDelta_abs_mn + margin_95CI),
+                    alpha = 0.35, color = NA) + #shaded area is 95% CI
+        geom_line() +
+        geom_point(shape = 21, size = 1.2, fill = 'white', stroke = 0.8,  alpha = 0.7) + 
+      
+      theme_classic_article() +  
         scale_color_discrete(name = 'Group', labels = lbl) +
         scale_fill_discrete(name = 'Group', labels = lbl) +
         scale_x_continuous(breaks = seq(0, 500, 50)) + 
-        # scale_y_continuous(limits = c(0, pertPlt$ystart[j])) +
-        scale_y_continuous(limits = c(-0.055, pertPlt$ystart[j])) +
-        labs(title = title, x = 'Trials', y = 'Distance between paddle and ball (a.u.)')
-      # ylim(-0.26, 0.15)
+        scale_y_continuous(limits = c(0, pertPlt$ystart[j]), breaks = seq(0, 0.25, 0.1), expand = expansion(mult = c(0, 0.01))) +
+        labs(title = title, x = 'Trials', 
+             #remove y title for session 2 plot
+             y = if (j == 1) 'Distance between paddle and ball (a.u.)' else element_blank()) + 
+        #remove y text labels for session 2 plot
+        theme(axis.text.y = if (j == 2) element_blank()) + 
+        coord_cartesian(clip = 'off') + 
+      {if (j == 1)
+        #annotate paddle border
+        annotate('text', x = maxtrialsD1, y = 0 + 0.01, label = 'Paddle border', 
+                 size = 3.5, color = 'black', hjust = 1.05)
+        } + 
+        {if (j == 1)
+          annotate('curve', x = maxtrialsD1, y = 0.009, xend = Inf, yend = pdlL - 0.005,
+                   color = 'black', size = 0.4, curvature = 0.2,
+                   arrow = arrow(angle = 25, length = unit(0.1, 'inches')))
+        }
       
       plist[[j]] = p
       
@@ -893,7 +903,7 @@ plotDeltaAbs <- function(df, save.as = 'svg', WxL = c(15,7)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/interceptDeltaAbs_avg_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)
     }
@@ -992,7 +1002,7 @@ VSS_plotDelta <- function(df, WxL = c(15,7), expeV) {
     
     #filename to save figure
     fname = sprintf('./docs/figures/VSSposter_interceptDelta_avg_%s.svg', expNames[i])
-    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     
   }
   
@@ -1092,7 +1102,114 @@ plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   
   #filename to save figure
   fname = sprintf('./docs/figures/stats_interceptDelta_%s.svg', whichVersion)
-    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+    ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
+  
+}
+
+
+plotDeltaAbs_stats <- function(df, whichVersion, WxL = c(10,5)) {
+  
+  #trialsN to keep for each day
+  kp_trialsN <- list(c(200, 201, 400), #day1
+                     c(1, 100, 101, 150, 151, 200)) #day2
+  
+  dfdata <- df %>% 
+    dplyr::select(expName, participant, Group, Day, tasksNum, trialsNum, interceptDelta) %>% 
+    filter(expName == whichVersion) %>% 
+    mutate(trialsN = trialsNum + (tasksNum-1)*50) %>% 
+    filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
+    mutate(interceptDelta_abs = abs(interceptDelta)) %>% 
+    convert_as_factor(trialsN) %>% 
+    split(., .$Day)
+  
+  dfdata <- mapply(function(x, y) filter(x, x$trialsN %in% y),
+                   x = dfdata, y = kp_trialsN, SIMPLIFY = F)
+  
+  #to plot paddle length
+  pdlL <- params$paddle[whichVersion, 'x']
+  
+  #to plot the size of the perturbation
+  pertPltX <- list(c(1.5, +Inf),
+                   c(-Inf, 4.5))
+  pertPltY <- data.frame(ystart = max(perturb[[whichVersion]]$perturb_size),
+                         yend = min(perturb[[whichVersion]]$perturb_size))
+  
+  #to represent trials w/ changes in conditions (different depending on the day)
+  vline <- list(c(1.5),
+                c(2.5, 4.5))
+  
+  #get number of participants in each group (n.gp)
+  n.gp <- demoG$N %>%
+    filter(expName == whichVersion) %>%
+    split(., .$Day)
+  
+  #set title and labels
+  title <- lapply(n.gp, function(x) {sprintf('Session %s', unique(x$Day))})
+  lbl <- lapply(n.gp, function(x) {sprintf('%s\n(N = %s)', Gps, x$n)})
+  xlbl <- list(c('Trial 50\n(Block 4, last trial)',
+                 'Trial 51\n(Block 5, first trial)',
+                 'Trial 400\n(Block 8, last trial)'),
+               c('Trial 1\n(Block 1, first trial)',
+                 'Trial 100\n(Block 2, last trial)',
+                 'Trial 101\n(Block 3, first trial)',
+                 'Trial 150\n(Block 3, last trial)',
+                 'Trial 151\n(Block 4, first trial)',
+                 'Trial 200\n(Block 4, last trial)'))
+  ylbl <- list(c('Distance between paddle and ball (a.u.)'),
+               c(NULL))
+  
+  #make plots
+  mkplot <- function(x, lgd, ttl, newXlbl, Ylbl, pertX, chgBlk) {
+    
+    #compute means per group
+    x_gp <- x %>% 
+      group_by(trialsN, Group) %>% 
+      summarise(mn_intercept = mean(interceptDelta_abs, na.rm = TRUE),
+                sd_intercept = sd(interceptDelta_abs, na.rm = TRUE),
+                .groups = 'drop')
+    
+    ggplot(x, aes(x = trialsN, y = interceptDelta_abs, color = Group)) +
+      geom_hline(yintercept = pdlL, linetype = 'dotted', size = 0.5) + 
+      annotate('rect', 
+               xmin = pertX[1], xmax = pertX[2],
+               ymin = pertPltY$ystart, ymax = pertPltY$yend,
+               fill = 'grey90') +
+      geom_vline(xintercept = chgBlk, linetype = 'dashed', size = 0.4) +
+      #individual data
+      geom_jitter(alpha = 0.25, size = 2.5, 
+                  position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.9)) +
+      #average across participants in the same group
+      geom_pointrange(data = x_gp, aes(y = mn_intercept, 
+                                       ymin = mn_intercept - sd_intercept,
+                                       ymax = mn_intercept + sd_intercept),
+                      position = position_dodge(0.4), 
+                      size = 0.7, fatten = 3.5, shape = 22, fill = 'white') + 
+      
+      theme_classic_article() + 
+      theme(legend.position = 'none',
+            plot.title = element_text(margin = margin(b = 70, unit = 'pt'))) + #increase margin below title to manually add stats
+      # scale_color_discrete(name = 'Group', labels = lgd) + 
+      # scale_x_discrete(labels = paste0('Trial\n', x$trialsN)) + #cumulative number of the trial
+      scale_x_discrete(labels = newXlbl) + #trial ## of block ##
+      scale_y_continuous(limits = c(-0.013, 0.45), breaks = seq(0, 0.4, 0.2)) +
+      labs(title = ttl,
+           x = NULL, y = Ylbl) + 
+      theme(axis.text.x = element_text(angle = 15, hjust = 0.9))
+    
+  }
+  
+  # plist <- lapply(dfdata, lbl, mkplot)
+  plist <- mapply(mkplot, dfdata, lbl, title, xlbl, ylbl, pertPltX, vline, SIMPLIFY = FALSE)
+  
+  #save plots as svg
+  # plot <- ggarrange(plist[[1]], NULL, plist[[2]], ncol = 3, widths = c(0.7,0.6,1),
+  #                   labels = c('C','','D'), font.label = list(size = 18))
+  plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(0.6,1),
+                    labels = c('C','D'), font.label = list(size = 18))
+  
+  #filename to save figure
+  fname = sprintf('./docs/figures/stats_interceptDeltaAbs_%s.svg', whichVersion)
+  ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
   
 }
 
@@ -1193,7 +1310,7 @@ VSS_plotDelta_stats <- function(df, whichVersion, WxL = c(10,5)) {
   
   #filename to save figure
   fname = sprintf('./docs/figures/VSSposter_stats_interceptDelta_%s.svg', whichVersion)
-  ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+  ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
   
 }
 
@@ -1268,7 +1385,7 @@ plotDeltaShift_blocks <- function(df, save.as = 'svg', WxL = c(14,10)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/interceptDelta-shift_blocks_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)
     }
@@ -1398,7 +1515,191 @@ plotDeltaShift_trials <- function(df, save.as = 'svg', WxL = c(15,10)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/interceptDelta-shift_trials_%s.svg', expNames[i])
-      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
+plotSpeedProfile_block <- function(df, save.as = 'svg', WxL = c(15,7)) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/speedProfileBlock_avg.pdf', width=WxL[1], height=WxL[2])
+  }
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      mutate(tasksNum = factor(tasksNum))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #remove block 1 of Day 1
+      if (j == 1) {
+        dataD <- dataD %>% 
+        filter(tasksNum != 1)
+          }
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Session %s\nN = %s', d[j], n)
+      } else {
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
+      }
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot(dataD, aes(x = frameNum, y = mn_velocity, 
+                             color = Group, fill = Group)) + 
+        facet_grid(. ~ tasksNum) + 
+        # geom_ribbon(aes(ymin = mn_velocity - velocity_95CI, ymax = mn_velocity + velocity_95CI),
+        #             alpha = 0.3, color = NA) + #shaded area is 95% CI
+        geom_ribbon(aes(ymin = mn_velocity - sd_velocity, ymax = mn_velocity + sd_velocity),
+                    alpha = 0.3, color = NA) + #shaded area is SD
+        geom_point(alpha = 0.8, size = 0.8) + 
+        geom_smooth(se = FALSE, span = 0.2, na.rm = TRUE, size = 0.5) + 
+        
+        theme_classic_article() +  
+        scale_color_discrete(name = 'Group', labels = lbl) +
+        scale_fill_discrete(name = 'Group', labels = lbl) +
+        # scale_x_continuous(breaks = seq(0, 500, 50)) + 
+        # scale_y_continuous(limits = c(0, pertPlt$ystart[j]), breaks = seq(0, 0.25, 0.1), expand = expansion(mult = c(0, 0.01))) +
+        labs(title = title, x = 'Frames', y = 'Speed (a.u./frame)')
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plist[[1]],                                             #1st line is Day 1
+                      ggarrange(plist[[2]], ncol = 2, widths = c(1.5, 1),    #2nd line is Day 2 + empty plot
+                                labels = 'B', font.label = list(size = 18)),
+                      nrow = 2,
+                      labels = 'A', font.label = list(size = 18))
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/speedProfileBlock_avg_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
+plotSpeedProfile_trial <- function(df, save.as = 'svg', WxL = c(15,7)) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/speedProfileTrial_avg.pdf', width=WxL[1], height=WxL[2])
+  }
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      mutate(tasksNum = factor(tasksNum))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #remove block 1 of Day 1
+      if (j == 1) {
+        dataD <- dataD %>% 
+          filter(tasksNum != 1)
+      }
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Session %s\nN = %s', d[j], n)
+      } else {
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
+      }
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot(dataD, aes(x = frameNum, y = mn_velocity, 
+                             color = Group,
+                             group = interaction(trialsNum, Group))) + 
+        facet_grid(. ~ tasksNum) + 
+        geom_line(stat = 'smooth', method = 'loess', span = 0.2, alpha = 0.2) + 
+        
+        theme_classic_article() +  
+        scale_color_discrete(name = 'Group', labels = lbl) +
+        scale_fill_discrete(name = 'Group', labels = lbl) +
+        # scale_x_continuous(breaks = seq(0, 500, 50)) + 
+        # scale_y_continuous(limits = c(0, pertPlt$ystart[j]), breaks = seq(0, 0.25, 0.1), expand = expansion(mult = c(0, 0.01))) +
+        labs(title = title, x = 'Frames', y = 'Speed (a.u./frame)')
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plist[[1]],                                             #1st line is Day 1
+                      ggarrange(plist[[2]], ncol = 2, widths = c(1.5, 1),    #2nd line is Day 2 + empty plot
+                                labels = 'B', font.label = list(size = 18)),
+                      nrow = 2,
+                      labels = 'A', font.label = list(size = 18))
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/speedProfileTrial_avg_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)
     }
@@ -1650,6 +1951,7 @@ plotTimingWithinIntercept <- function(df, save.as = 'svg') {
       #make plots with timing relative to bounce time
       p <- ggplot(dataD, aes(x = tasksNum, y = timeReBounce, color = Group)) +
         geom_hline(yintercept = 0, linetype = 'dashed') +
+        geom_hline(yintercept = 0.417, linetype = 'dotted') +
         geom_boxplot() +
         theme_classic() +
         theme(legend.position = 'top') +
@@ -1953,7 +2255,7 @@ theme_classic_article <- function(){
     theme(
       
       #text elements
-      text = element_text(size = 12),
+      text = element_text(size = 10),
       
       #legend elements
       legend.position = 'top',
