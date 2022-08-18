@@ -1443,11 +1443,12 @@ plotDeltaShift_trials <- function(df, save.as = 'svg', WxL = c(15,10)) {
       
       #perturbation schedule
       if (j==1) {
-        pert_sched <- list('No perturbation (Block 4)','Trained perturbation (Block 5)')
+        pert_sched <- list('No perturbation (Block 4) - Last 10 trials',
+                           'Trained perturbation (Block 5) - First 10 trials')
       } else {
-        pert_sched <- list('Trained perturbation (Block 1)', 
-                           'Untrained perturbation (Block 3)', 
-                           'No perturbation (Block 4)')
+        pert_sched <- list('Trained perturbation (Block 1) - First 10 trials', 
+                           'Untrained perturbation (Block 3) - First 10 trials', 
+                           'No perturbation (Block 4) - First 10 trials')
       }
       
       #get number of participants for each task version (n) and each group (n.gp)
@@ -1578,7 +1579,7 @@ plotSpeedProfile_block <- function(df, save.as = 'svg', WxL = c(15,7)) {
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
       
       #make plots
-      p <- ggplot(dataD, aes(x = frameNum, y = mn_velocity, 
+      p <- ggplot(dataD, aes(x = frameNum - 3, y = mn_velocity, 
                              color = Group, fill = Group)) + 
         facet_grid(. ~ tasksNum) + 
         # geom_ribbon(aes(ymin = mn_velocity - velocity_95CI, ymax = mn_velocity + velocity_95CI),
@@ -1591,9 +1592,9 @@ plotSpeedProfile_block <- function(df, save.as = 'svg', WxL = c(15,7)) {
         theme_classic_article() +  
         scale_color_discrete(name = 'Group', labels = lbl) +
         scale_fill_discrete(name = 'Group', labels = lbl) +
-        # scale_x_continuous(breaks = seq(0, 500, 50)) + 
+        scale_x_continuous(breaks = seq(0, 50, 20)) +
         # scale_y_continuous(limits = c(0, pertPlt$ystart[j]), breaks = seq(0, 0.25, 0.1), expand = expansion(mult = c(0, 0.01))) +
-        labs(title = title, x = 'Frames', y = 'Speed (a.u./frame)')
+        labs(title = title, x = 'Number of frames', y = 'Speed (a.u./frame)')
       
       plist[[j]] = p
       
@@ -1672,7 +1673,7 @@ plotSpeedProfile_trial <- function(df, save.as = 'svg', WxL = c(15,7)) {
       lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
       
       #make plots
-      p <- ggplot(dataD, aes(x = frameNum, y = mn_velocity, 
+      p <- ggplot(dataD, aes(x = frameNum - 3, y = mn_velocity, 
                              color = Group,
                              group = interaction(trialsNum, Group))) + 
         facet_grid(. ~ tasksNum) + 
@@ -1680,10 +1681,10 @@ plotSpeedProfile_trial <- function(df, save.as = 'svg', WxL = c(15,7)) {
         
         theme_classic_article() +  
         scale_color_discrete(name = 'Group', labels = lbl) +
-        scale_fill_discrete(name = 'Group', labels = lbl) +
-        # scale_x_continuous(breaks = seq(0, 500, 50)) + 
-        # scale_y_continuous(limits = c(0, pertPlt$ystart[j]), breaks = seq(0, 0.25, 0.1), expand = expansion(mult = c(0, 0.01))) +
-        labs(title = title, x = 'Frames', y = 'Speed (a.u./frame)')
+        scale_fill_discrete(name = 'Group', labels = lbl) + 
+        scale_x_continuous(breaks = seq(0, 50, 20)) + 
+        # scale_y_continuous(limits = c(0, YmaxLim)) +
+        labs(title = title, x = 'Number of frames', y = 'Speed (a.u./frame)')
       
       plist[[j]] = p
       

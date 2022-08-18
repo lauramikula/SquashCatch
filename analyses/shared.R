@@ -222,9 +222,11 @@ getSpeedProfile_trial <- function (df) {
     #then average velocity across participants in each group
     summarise(mn_velocity = mean(mn_pp_velocity, na.rm = TRUE),
               sd_velocity = sd(mn_pp_velocity, na.rm = TRUE),
-              n = n(),
-              velocity_95CI = qt(p = 0.05/2, df = n-1, lower.tail = F) * (sd_velocity / sqrt(n)),
+              nGp = n(),
+              velocity_95CI = qt(p = 0.05/2, df = nGp-1, lower.tail = F) * (sd_velocity / sqrt(nGp)),
               .groups = 'drop') %>% 
+    #transform number of frames into ms
+    mutate(time = (frameNum - 3) * 1/60 * 1000, .after = frameNum) %>% 
     drop_na()
   
   return(dfSpeed)
@@ -250,6 +252,8 @@ getSpeedProfile_block <- function (df) {
               n = n(),
               velocity_95CI = qt(p = 0.05/2, df = n-1, lower.tail = F) * (sd_velocity / sqrt(n)),
               .groups = 'drop') %>% 
+    #transform number of frames into ms
+    mutate(time = (frameNum - 3) * 1/60 * 1000, .after = frameNum) %>% 
     drop_na()
   
   return(dfSpeed)

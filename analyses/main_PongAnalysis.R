@@ -681,6 +681,24 @@ dataSpeed_trial <- getSpeedProfile_trial(datacursor)
 plotSpeedProfile_trial(dataSpeed_trial, save.as = 'pdf', WxL = c(13,8))
 
 
+#try to plot single trials vertically
+#get data
+test <- dataSpeed_trial %>% 
+  filter(expName == 'bounceV3' & Day == 1 & Group == 'train_tilt', tasksNum == 5)
+
+#plot figures
+ggplot(data = test,
+       aes(x = frameNum, y = trialsNum/200 + mn_velocity, group = trialsNum, color = as_factor(trialsNum))) + 
+  geom_line(stat = 'smooth', method = 'loess', span = 0.2) + 
+  
+  theme_classic_article() + 
+  scale_y_continuous(limits = c(0, 0.3))
+
+ggplot(data = test,
+       aes(x = as_factor(trialsNum), y = mn_velocity, group = trialsNum)) + 
+  geom_line(stat = 'smooth', method = 'loess', span = 0.2)
+
+
 #exploratory analysis ----
 
 ##get bounce and connect timings ----
