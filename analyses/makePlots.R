@@ -1642,6 +1642,12 @@ plotSpeedProfile_trial <- function(df, save.as = 'svg', WxL = c(15,7)) {
       filter(expName == expNames[i]) %>%
       mutate(tasksNum = factor(tasksNum))
     
+    # #get maximum limit for Y axis
+    # YmaxLim <- dfdata %>% 
+    #   #keep everything except block 1 of day 1
+    #   filter(!(Day == 1 & tasksNum == 1)) %>% 
+    #   pull(mn_velocity)
+    
     #get the number of days
     d <- unique(df$Day)
     
@@ -1683,7 +1689,7 @@ plotSpeedProfile_trial <- function(df, save.as = 'svg', WxL = c(15,7)) {
         scale_color_discrete(name = 'Group', labels = lbl) +
         scale_fill_discrete(name = 'Group', labels = lbl) + 
         scale_x_continuous(breaks = seq(0, 50, 20)) + 
-        # scale_y_continuous(limits = c(0, YmaxLim)) +
+        scale_y_continuous(limits = c(0, NA)) + #set only lower limit of Y axis
         labs(title = title, x = 'Number of frames', y = 'Speed (a.u./frame)')
       
       plist[[j]] = p
@@ -1700,6 +1706,266 @@ plotSpeedProfile_trial <- function(df, save.as = 'svg', WxL = c(15,7)) {
     #filename to save figure
     if (save.as == 'svg') {
       fname = sprintf('./docs/figures/speedProfileTrial_avg_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
+# exploratory plots ----
+
+plotInterceptErr_trials <- function(df, save.as = 'svg', WxL = c(15,10)) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/interceptError_trials.pdf', width=WxL[1], height=WxL[2])
+  }
+  
+  #to plot trials w/ changes in conditions (different depending on the day)
+  tr <- list(c(191:200, 201:210, 391:400),
+             c(1:10, 101:110, 151:160))
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
+    #to plot central part of paddle
+    pdlC <- c(-params$paddle$MaxPts[i], params$paddle$MaxPts[i])
+    
+    #to plot the size of the perturbation
+    pertPlt <- data.frame(start = max(perturb[[expNames[i]]]$perturb_size)*-1, 
+                          end = min(perturb[[expNames[i]]]$perturb_size)*-1)
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      # filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
+      mutate(trialsN = trialsNum + (tasksNum-1)*50) %>% 
+      mutate(trialsN = factor(trialsN))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j] & trialsN %in% tr[[j]])
+      
+      #perturbation schedule
+      if (j==1) {
+        pert_sched <- list('No perturbation (Block 4) - Last 10 trials',
+                           'Trained perturbation (Block 5) - First 10 trials',
+                           'Trained perturbation (Block 8) - Last 10 trials')
+      } else {
+        pert_sched <- list('Trained perturbation (Block 1) - First 10 trials', 
+                           'Untrained perturbation (Block 3) - First 10 trials', 
+                           'No perturbation (Block 4) - First 10 trials')
+      }
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Session %s (N = %s)', d[j], n)
+      } else {
+        title <- sprintf('%s, Session %s (N = %s)', expNames[i], d[j], n)
+      }
+      
+      #add perturbation schedule to title
+      title_pert <- lapply(pert_sched, function(x) sprintf('%s\n%s', title, x))
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      dataD %<>% split(., .$tasksNum)
+      
+      mkplot <- function(x, ttl) {
+        taskN <- x$tasksNum
+        ggplot(x, aes(x = interceptErr, y = trialsN, fill = Group)) +
+          #wrap trialsN with fct_rev() to have descending order in y axis if no coord_flip
+          geom_vline(xintercept = pdlL, linetype = 'solid', size = 0.4) +
+          geom_vline(xintercept = pdlC, linetype = 'dashed') +
+          {if ((j==1 & taskN > 4) || (j==2 & taskN < 4))
+            geom_rect(xmin = pertPlt$start, xmax = pertPlt$end, ymin = -Inf, ymax = Inf,
+                      fill = 'grey85')} +
+          geom_density_ridges(alpha = 0.5, size = 0.4, scale = 1.2) +
+          coord_flip() +
+          
+          theme_ridges(font_size = 12, center_axis_labels = TRUE) +
+          theme(plot.margin = unit(c(5,15,10,15), 'pt'),
+                plot.title = element_text(margin = margin(0,0,20,0, 'pt')),
+                axis.title.y.left = element_text(margin = margin(0,8,0,0, 'pt')),
+                axis.text = element_text(color = 'grey40')) +
+          scale_fill_discrete(name = 'Group', labels = lbl) +
+          xlim(-0.5, 0.4) +
+          labs(title = ttl, x = 'Distance between paddle and ball (a.u.)', y = 'Trials')
+      }
+      
+      p <- mapply(mkplot, dataD, title_pert, SIMPLIFY = F)
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(
+      ggarrange(plotlist = plist[[1]], ncol = 3,
+                common.legend = T, legend = 'bottom',
+                labels = c('A','B','C'), font.label = list(size = 18)), #1st row for day 1
+      #add dummy 2nd row for spacing
+      NULL,
+      ggarrange(plotlist = plist[[2]], ncol = 3,
+                common.legend = T, legend = 'bottom',
+                labels = c('D','E','F'), font.label = list(size = 18)), #3rd row for day 2
+      nrow = 3, heights = c(1, 0.05, 1)
+    )
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/interceptError_trials_%s.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
+plotUncorrectedErrAbs <- function(df, save.as = 'svg', WxL = c(15,7)) {
+  
+  #show a message if one of the arguments is missing?
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/uncorrectedErrAbs_avg.pdf', width=WxL[1], height=WxL[2])
+  }
+  
+  #to represent trials w/ changes in conditions (different depending on the day)
+  vline <- list(c(200),
+                c(100, 150))
+  
+  for (i in 1:length(expNames)) {
+    
+    plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- params$paddle$x[i]
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      mutate(trialsN = trialsNum + (tasksNum-1)*50) %>% 
+      mutate(tasksNum = factor(tasksNum))
+    
+    #to plot the size of the perturbation
+    maxtrialsD1 <- max(dfdata[which(dfdata$Day == 1), ]$trialsN)
+    pertPlt <- data.frame(xstart = c(200, 0), 
+                          xend = c(maxtrialsD1, 150), 
+                          ystart = rep(max(perturb[[expNames[i]]]$perturb_size)*1, times = 2), 
+                          yend = rep(min(perturb[[expNames[i]]]$perturb_size)*1, times = 2))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j])
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Session %s\nN = %s', d[j], n)
+      } else {
+        title <- sprintf('%s, Session %s\nN = %s', expNames[i], d[j], n)
+      }
+      
+      lbl <- sprintf('%s\n(N = %s)', Gps, n.gp)
+      
+      #make plots
+      p <- ggplot(dataD, aes(x = trialsN, y = iErr_abs_mn, 
+                             color = Group, fill = Group,
+                             group = interaction(Group, tasksNum))) + #group = interaction to dissociate between blocks and groups
+        #perturbation size
+        annotate('rect',
+                 xmin = pertPlt$xstart[j], xmax = pertPlt$xend[j],
+                 ymin = pertPlt$ystart[j], ymax = pertPlt$yend[j],
+                 fill = 'grey90') + 
+        annotate('text', x = pertPlt$xstart[j], y = (pertPlt$ystart[j] + pertPlt$yend[j])/2,
+                 label = 'Perturbation size', size = 3.5, color = 'grey50', hjust = -0.05) + 
+        #paddle border
+        geom_hline(yintercept = pdlL, linetype = 'dotted', size = 0.5) + 
+        geom_vline(xintercept = vline[[j]], linetype = 'dashed', size = 0.4) + 
+        #data
+        # geom_ribbon(aes(ymin = iErr_abs_mn - iErr_abs_sd, ymax = iErr_abs_mn + iErr_abs_sd),
+        #             alpha = 0.3, color = NA) + #shaded area is SD
+        geom_ribbon(aes(ymin = iErr_abs_mn - margin_95CI, ymax = iErr_abs_mn + margin_95CI),
+                    alpha = 0.35, color = NA) + #shaded area is 95% CI
+        geom_line() +
+        geom_point(shape = 21, size = 1.2, fill = 'white', stroke = 0.8,  alpha = 0.7) + 
+        
+        theme_classic_article() +  
+        scale_color_discrete(name = 'Group', labels = lbl) +
+        scale_fill_discrete(name = 'Group', labels = lbl) +
+        scale_x_continuous(breaks = seq(0, 500, 50)) + 
+        # scale_y_continuous(limits = c(0, pertPlt$ystart[j]), breaks = seq(0, 0.25, 0.1), expand = expansion(mult = c(0, 0.01))) +
+        labs(title = title, x = 'Trials', 
+             #remove y title for session 2 plot
+             y = if (j == 1) 'Distance between paddle and ball (a.u.) before online correction' else element_blank()) + 
+        #remove y text labels for session 2 plot
+        theme(axis.text.y = if (j == 2) element_blank()) + 
+        coord_cartesian(clip = 'off') + 
+        {if (j == 1)
+          #annotate paddle border
+          annotate('text', x = maxtrialsD1, y = 0 + 0.01, label = 'Paddle border', 
+                   size = 3.5, color = 'black', hjust = 1.05)
+        } + 
+        {if (j == 1)
+          annotate('curve', x = maxtrialsD1, y = 0.009, xend = Inf, yend = pdlL - 0.005,
+                   color = 'black', size = 0.4, curvature = 0.2,
+                   arrow = arrow(angle = 25, length = unit(0.1, 'inches')))
+        }
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(plotlist = plist, ncol = 2, widths = c(2,1.1), #width fig1 = 2*fig2 to have same x scale
+                      labels = c('A','B'), font.label = list(size = 18))
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/uncorrectedErrAbs_avg_%s.svg', expNames[i])
       ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)

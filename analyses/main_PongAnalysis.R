@@ -670,7 +670,7 @@ datacursor <- getKinematics(data)
 dataSpeed_block <- getSpeedProfile_block(datacursor)
 
 #plot figures
-plotSpeedProfile_block(dataSpeed_block, save.as = 'pdf', WxL = c(13,8))
+plotSpeedProfile_block(dataSpeed_block, save.as = 'svg', WxL = c(13,8))
 
 
 #same as before but for individual trials
@@ -678,7 +678,7 @@ plotSpeedProfile_block(dataSpeed_block, save.as = 'pdf', WxL = c(13,8))
 dataSpeed_trial <- getSpeedProfile_trial(datacursor)
 
 #plot figures
-plotSpeedProfile_trial(dataSpeed_trial, save.as = 'pdf', WxL = c(13,8))
+plotSpeedProfile_trial(dataSpeed_trial, save.as = 'svg', WxL = c(13,8))
 
 
 #try to plot single trials vertically
@@ -697,6 +697,45 @@ ggplot(data = test,
 ggplot(data = test,
        aes(x = as_factor(trialsNum), y = mn_velocity, group = trialsNum)) + 
   geom_line(stat = 'smooth', method = 'loess', span = 0.2)
+
+
+##interception errors before online correction ----
+
+#define a specific frame number (after the 1st velocity peak in speed profile)
+chooseFrame = 40
+
+data_nocorrection <- datacursor %>% 
+  # filter(hitOrMiss == 'hit') %>%
+  filter(frameNum == chooseFrame) %>% 
+  mutate(interceptErr = interceptBall - paddlePosX) %>% 
+  #change interceptErr (negative is undershoot, positive is overshoot)
+  mutate(interceptErr = ifelse(alphaChoice > 0, interceptErr*-1, interceptErr)) %>% 
+  filter(abs(interceptErr) < 0.5) %>% 
+  drop_na(interceptErr)
+
+#make plot
+plotInterceptErr_trials(data_nocorrection, save.as = 'pdf')
+
+#create new data frame with absolute uncorrected errors and average across groups
+data_nocorrection_abs <- data_nocorrection %>% 
+  filter(hitOrMiss == 'hit') %>% 
+  mutate(interceptErr = abs(interceptErr)) %>% 
+  group_by(expName, Day, Group, tasksNum, trialsNum) %>% 
+  summarise(iErr_abs_mn = mean(interceptErr),
+            iErr_abs_sd = sd(interceptErr),
+            n = n(),
+            margin_95CI = qt(p = 0.05/2, df = n-1, lower.tail = F) * (iErr_abs_sd / sqrt(n)),
+            .groups = 'drop')
+
+#plot same as iDelta
+plotUncorrectedErrAbs(data_nocorrection_abs, save.as = 'pdf')
+
+
+
+##uncorrected errors (after the first velocity peak) ----
+
+
+
 
 
 #exploratory analysis ----
