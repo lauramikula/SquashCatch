@@ -599,6 +599,32 @@ plotDeltaShift_trials_frameN(data_frame_N_last, save.as = 'svg')
 
 
 
+##ridgeline plots of intercepDelta at bounce and connect times ----
+
+###extract paddle position at bounce time and connect time ----
+data_frame_bounce_interc <- datacursor %>% 
+  # filter(hitOrMiss == 'hit') %>%
+  group_by(participant, Day, tasksNum, trialsNum) %>% 
+  slice(which.max(ballPosY)) %>% 
+  ungroup() %>% 
+  mutate(iDelta_bounce = interceptBall - paddlePosX) %>% 
+  #change iDelta_bounce (negative is undershoot, positive is overshoot)
+  mutate(iDelta_bounce = ifelse(alphaChoice > 0, iDelta_bounce*-1, iDelta_bounce)) %>% 
+  # filter(abs(iDelta_bounce) < 0.5) %>% #remove trials in which participants did not move and start to move late
+  # drop_na(iDelta_bounce) %>% 
+  # join with data to have interceptDelta on connect time
+  full_join(y = data[, c('interceptDelta', 'participant', 'Day', 'tasksNum', 'trialsNum')], 
+            by = c('participant', 'Day', 'tasksNum', 'trialsNum')) %>% 
+  rename(iDelta_connect = interceptDelta) %>% 
+  # wide to long format
+  gather(whichFrame, interceptDelta, iDelta_bounce:iDelta_connect, factor_key = TRUE)
+
+#plot
+#across 10 trials after a perturbation (Day 1 block 5; Day 2 blocks 1,3,4)
+plotDeltaShift_trials_bounce_connect(data_frame_bounce_interc, save.as = 'svg')
+
+
+
 ##interceptDelta per target ----
 
 iDelta_targ <- data %>% 

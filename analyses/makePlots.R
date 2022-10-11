@@ -1696,6 +1696,168 @@ plotDeltaShift_trials_frameN <- function(df, save.as = 'svg', WxL = c(15,10)) {
 }
 
 
+plotDeltaShift_trials_bounce_connect <- function(df, save.as = 'svg', WxL = c(15,10)) {
+  
+  #show a message if one of the arguments is missing?
+  
+  df <- df %>% 
+    mutate(trialsN = trialsNum + (tasksNum-1)*50)
+  
+  #filename to save figure
+  if (save.as == 'pdf') {
+    pdf('./docs/interceptDelta-shift_bounce_connect.pdf', width=WxL[1], height=WxL[2])
+  }
+  
+  #get the maximum number of trials on day 1, for each experiment version
+  TrialsN_D1 <- tapply(df$trialsN, df$expName, max)
+  TrialsN_D1_minus9 <- TrialsN_D1 - 9
+  
+  for (i in 1:length(expNames)) {
+    
+    #to plot trials w/ changes in conditions (different depending on the day)
+    tr <- list(c(191:200, 201:210, TrialsN_D1_minus9[i]:TrialsN_D1[i]),
+               c(1:10, 101:110, 151:160))
+    
+    plist <- list() #empty list to store several plots
+    
+    #to plot paddle length
+    pdlL <- c(-params$paddle$x[i], params$paddle$x[i])
+    #to plot central part of paddle
+    pdlC <- c(-params$paddle$MaxPts[i], params$paddle$MaxPts[i])
+    
+    #to plot the size of the perturbation
+    pertPlt <- data.frame(start = max(perturb[[expNames[i]]]$perturb_size)*-1, 
+                          end = min(perturb[[expNames[i]]]$perturb_size)*-1)
+    
+    #get data for each version of the experiment
+    dfdata <- df %>%
+      filter(expName == expNames[i]) %>%
+      # filter(abs(interceptDelta) < 0.5) %>% #remove trials in which participants did not move and start to move late
+      mutate(trialsN = factor(trialsN))
+    
+    #get the number of days
+    d <- unique(df$Day)
+    
+    for (j in 1:length(d)) {
+      
+      #get data for each day
+      dataD <- dfdata %>%
+        filter(Day == d[j] & trialsN %in% tr[[j]])
+      
+      #perturbation schedule
+      if (j==1) {
+        pert_sched <- list('No perturbation (Block 4) - Last 10 trials',
+                           'Trained perturbation (Block 5) - First 10 trials',
+                           sprintf('Trained perturbation (Block %s) - Last 10 trials', max(dataD$tasksNum)))
+      } else {
+        pert_sched <- list('Trained perturbation (Block 1) - First 10 trials', 
+                           'Untrained perturbation (Block 3) - First 10 trials', 
+                           'No perturbation (Block 4) - First 10 trials')
+      }
+      
+      #get number of participants for each task version (n) and each group (n.gp)
+      n.gp <- demoG$N %>%
+        filter(expName == expNames[i] & Day == d[j]) %>%
+        .$n
+      n <- sum(n.gp)
+      
+      #get minimmum tasksNum for each day
+      min_tasksN <- min(dataD$tasksNum)
+      
+      #set title and labels
+      if (save.as == 'svg') {
+        title <- sprintf('Session %s (N = %s)', d[j], n)
+      } else {
+        title <- sprintf('%s, Session %s (N = %s)', expNames[i], d[j], n)
+      }
+      
+      #add perturbation schedule to title
+      title_pert <- lapply(pert_sched, function(x) sprintf('%s\n%s', title, x))
+      
+      gps <- sprintf('%s (N = %s)', Gps, n.gp)
+      frms <- c('\nBounce time', '\nConnect time')
+      lbl <- do.call(paste0, expand.grid(gps, frms))
+      
+      #make plots
+      dataD %<>% split(., .$tasksNum)
+      
+      Cols <- c('#f8766d', '#00bfc4',
+                '#e08b00', '#9590ff')
+      
+      mkplot <- function(x, ttl) {
+        taskN <- unique(x$tasksNum)
+        ggplot(x, aes(x = interceptDelta, y = trialsN, 
+                      fill = interaction(Group, whichFrame))) +
+          #wrap trialsN with fct_rev() to have descending order in y axis if no coord_flip
+          geom_vline(xintercept = pdlL, linetype = 'solid', size = 0.4) +
+          geom_vline(xintercept = pdlC, linetype = 'dashed') +
+          {if ((j==1 & taskN > 4) || (j==2 & taskN < 4))
+            geom_rect(xmin = pertPlt$start, xmax = pertPlt$end, ymin = -Inf, ymax = Inf,
+                      fill = 'grey85')} +
+          geom_density_ridges(alpha = 0.5, size = 0.4, scale = 1.2) + 
+          coord_flip() +
+          
+          theme_ridges(font_size = 12, center_axis_labels = TRUE) +
+          theme(panel.background = element_rect(fill = 'white'),
+                plot.margin = unit(c(5,15,10,15), 'pt'),
+                plot.title = element_text(margin = margin(0,0,20,0, 'pt')),
+                axis.title.y.left = element_text(margin = margin(0,8,0,0, 'pt')),
+                axis.text = element_text(color = 'grey40')) +
+          # scale_fill_discrete(name = 'Group', labels = lbl) +
+          scale_fill_manual(values = Cols, name = NULL, labels = lbl) + 
+          xlim(-0.6, 0.3) +
+          labs(title = ttl, 
+               #remove x title for all except first plots of each row
+               x = if (taskN == min_tasksN) 'Distance between paddle and ball final position (a.u.)' 
+               else element_blank(), 
+               y = 'Trials') + 
+          #remove y text labels for all except first plots of each row
+          theme(axis.text.y = if (taskN != min_tasksN) element_blank())
+      }
+      
+      p <- mapply(mkplot, dataD, title_pert, SIMPLIFY = F)
+      
+      plist[[j]] = p
+      
+    }
+    
+    #save plots as svg or pdf
+    plot <- ggarrange(
+      ggarrange(plotlist = plist[[1]], ncol = 3,
+                common.legend = T, legend = 'bottom',
+                labels = c('A','B','C'), font.label = list(size = 18),
+                widths = c(1.05, 1, 1)), #1st row for day 1
+      
+      #add dummy 2nd row for spacing
+      NULL,
+      
+      ggarrange(plotlist = plist[[2]], ncol = 3,
+                common.legend = T, legend = 'bottom',
+                labels = c('D','E','F'), font.label = list(size = 18),
+                widths = c(1.05, 1, 1)), #3rd row for day 2
+      
+      nrow = 3, heights = c(1, 0.05, 1)
+    ) + 
+      bgcolor('white') + 
+      border('white')
+    
+    #filename to save figure
+    if (save.as == 'svg') {
+      fname = sprintf('./docs/figures/interceptDelta-shift_%s_bounce_connect.svg', expNames[i])
+      ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
+    } else {
+      print(plot)
+    }
+    
+  }
+  
+  if (save.as == 'pdf') {
+    dev.off()
+  }
+  
+}
+
+
 plotSpeedProfile_block <- function(df, save.as = 'svg', WxL = c(15,7)) {
   
   #show a message if one of the arguments is missing?
