@@ -569,6 +569,36 @@ plotDeltaShift_trials(data, save.as = 'svg')
 
 
 
+##ridgeline plots of intercepDelta on frame 40 ----
+
+###get cursor data ----
+
+datacursor <- getKinematics(data)
+
+###define a specific frame number (after the 1st velocity peak in speed profile) ----
+chooseFrame = 40
+
+data_noCorr <- datacursor %>% 
+  # filter(hitOrMiss == 'hit') %>%
+  filter(frameNum == chooseFrame) %>% 
+  mutate(interceptDelta_40 = interceptBall - paddlePosX) %>% 
+  #change interceptDelta_40 (negative is undershoot, positive is overshoot)
+  mutate(interceptDelta_40 = ifelse(alphaChoice > 0, interceptDelta_40*-1, interceptDelta_40)) %>% 
+  # filter(abs(interceptDelta_40) < 0.5) %>% #remove trials in which participants did not move and start to move late
+  drop_na(interceptDelta_40) %>% 
+  # join with data to have interceptDelta on last frame
+  full_join(y = data[, c('interceptDelta', 'participant', 'Day', 'tasksNum', 'trialsNum')], 
+            by = c('participant', 'Day', 'tasksNum', 'trialsNum')) %>% 
+  rename(interceptDelta_last = interceptDelta) %>% 
+  # wide to long format
+  gather(whichFrame, interceptDelta, interceptDelta_40:interceptDelta_last, factor_key = TRUE)
+
+#plot
+#across 10 trials after a perturbation (Day 1 block 5; Day 2 blocks 1,3,4)
+plotDeltaShift_trials_frameN(data_noCorr, save.as = 'svg')
+
+
+
 ##interceptDelta per target ----
 
 iDelta_targ <- data %>% 
@@ -720,7 +750,7 @@ plotInterceptErr_trials(data_nocorrection, save.as = 'pdf')
 data_nocorrection_abs <- data_nocorrection %>% 
   filter(hitOrMiss == 'hit') %>% 
   mutate(interceptErr = abs(interceptErr)) %>% 
-  group_by(expName, Day, Group, tasksNum, trialsNum) %>% 
+  group_by(expName, Day, Group, tasksNum, trialsNum, frameNum) %>% 
   summarise(iErr_abs_mn = mean(interceptErr),
             iErr_abs_sd = sd(interceptErr),
             n = n(),
@@ -728,13 +758,38 @@ data_nocorrection_abs <- data_nocorrection %>%
             .groups = 'drop')
 
 #plot same as iDelta
-plotUncorrectedErrAbs(data_nocorrection_abs, save.as = 'pdf')
+plotUncorrectedErrAbs(data_nocorrection_abs, save.as = 'svg')
 
 
 
 ##uncorrected errors (after the first velocity peak) ----
 
-
+test <- datacursor %>% 
+  filter(participant == demoG$pp[137] & trialsNum >= 10) %>% #just a few trials to test
+  filter(hitOrMiss == 'hit') %>% #get hits only
+  group_by(expName, participant, Day, tasksNum, trialsNum) %>% 
+  mutate(velocity = abs(paddlePosX - lag(paddlePosX))) %>% 
+  # #save this info as an intermediate step and then use ggplot_build
+  # ggplot(., aes(x = frameNum - 3, y = velocity)) +
+  # geom_line(stat = 'smooth', method = 'loess', span = 0.2, alpha = 0.2)
+  mutate(Loess = predict(loess(velocity~frameNum, method = 'loess', span = 0.15, data = .),
+                         data.frame(frameNum = frameNum)))
+test %<>% 
+  group_by(expName, participant, Day, tasksNum, trialsNum) %>% 
+  filter(frameNum > 20) %>% 
+  mutate(LoessDiff = sign(Loess - lag(Loess)),
+         # peak = row_number() == which.max(velocity),
+         peak = row_number() == which.max(Loess),
+         # before_peak = row_number() < which.max(velocity),
+         before_peak = row_number() < which.max(Loess),
+         bump = LoessDiff == 1 & before_peak == FALSE) %>% 
+  filter(before_peak == FALSE) #keep only time frames after peak
+test2 <- test %>% 
+  mutate(counter = cumsum(row_number() > which(bump)[1]) -1)
+#doesn't work!!!!!!!!!!!!!!!!
+test3 <- test2 %>% 
+  filter(counter == 0) %>% 
+  slice_tail(n = 1)
 
 
 
