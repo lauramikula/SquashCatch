@@ -1542,7 +1542,7 @@ plotDeltaShift_trials_frameN <- function(df, save.as = 'svg', WxL = c(15,10)) {
   
   #filename to save figure
   if (save.as == 'pdf') {
-    pdf(sprintf('./docs/interceptDelta-shift_trials_frame%s.pdf', frameN), 
+    pdf(sprintf('./docs/interceptDelta-shift_frame%s_lastframe.pdf', frameN), 
         width=WxL[1], height=WxL[2])
   }
   
@@ -1675,11 +1675,13 @@ plotDeltaShift_trials_frameN <- function(df, save.as = 'svg', WxL = c(15,10)) {
                 widths = c(1.05, 1, 1)), #3rd row for day 2
       
       nrow = 3, heights = c(1, 0.05, 1)
-    ) + bgcolor('white') 
+    ) + 
+      bgcolor('white') + 
+      border('white')
     
     #filename to save figure
     if (save.as == 'svg') {
-      fname = sprintf('./docs/figures/interceptDelta-shift_trials_%s_frame%s.svg', expNames[i], frameN)
+      fname = sprintf('./docs/figures/interceptDelta-shift_%s_frame%s_lastframe.svg', expNames[i], frameN)
       ggsave(file=fname, plot=plot, width=WxL[1], height=WxL[2], dpi = 300)
     } else {
       print(plot)

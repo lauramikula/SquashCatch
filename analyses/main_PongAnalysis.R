@@ -578,7 +578,7 @@ datacursor <- getKinematics(data)
 ###define a specific frame number (after the 1st velocity peak in speed profile) ----
 chooseFrame = 40
 
-data_noCorr <- datacursor %>% 
+data_frame_N_last <- datacursor %>% 
   # filter(hitOrMiss == 'hit') %>%
   filter(frameNum == chooseFrame) %>% 
   mutate(interceptDelta_40 = interceptBall - paddlePosX) %>% 
@@ -595,7 +595,7 @@ data_noCorr <- datacursor %>%
 
 #plot
 #across 10 trials after a perturbation (Day 1 block 5; Day 2 blocks 1,3,4)
-plotDeltaShift_trials_frameN(data_noCorr, save.as = 'svg')
+plotDeltaShift_trials_frameN(data_frame_N_last, save.as = 'svg')
 
 
 
